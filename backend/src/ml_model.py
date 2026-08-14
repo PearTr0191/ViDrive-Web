@@ -113,17 +113,19 @@ class ResalePredictor:
         if models and self._feature_cols is not None:
             X = self._encode(brand, segment, car_type, years, annual_km, price)
             X = X.reindex(columns=self._feature_cols, fill_value=0.0)
-            preds = [float(m.predict(X)[0]) for m in models]
+            X_values = X.to_numpy(dtype=float)
+
+            preds = [float(m.predict(X_values)[0]) for m in models]
             ensemble = float(np.mean(preds))
             spread = max(preds) - min(preds)
             result["ml_prediction"] = ensemble
             result["ml_spread"] = spread
             result["method"] = "ml"
-            # ml_std is non-essential; guard it so a missing estimators_ attribute
-            # can't abort the prediction after ml_prediction is already set.
+
             try:
                 if self._rf is not None:
-                    result["ml_std"] = float(np.std([t.predict(X) for t in self._rf.estimators_]))
+                    tree_preds = [float(t.predict(X_values)[0]) for t in self._rf.estimators_]
+                    result["ml_std"] = float(np.std(tree_preds))
                 else:
                     result["ml_std"] = None
             except Exception:  # pragma: no cover - defensive
