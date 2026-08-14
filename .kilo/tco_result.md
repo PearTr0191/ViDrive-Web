@@ -1,0 +1,418 @@
+- generic [ref=f20e2]:
+  - generic [ref=f20e3]:
+    - scrollbar "Page scroll position" [ref=f20e6]
+    - link "Bỏ qua nội dung" [ref=f20e13] [cursor=pointer]:
+      - /url: "#main-content"
+    - banner [ref=f20e14]:
+      - generic [ref=f20e15]:
+        - link "ViDrive" [ref=f20e16] [cursor=pointer]:
+          - /url: /
+          - generic "ViDrive" [ref=f20e17]:
+            - img "ViDrive" [ref=f20e18]
+        - navigation [ref=f20e19]:
+          - link "Trang chủ" [ref=f20e20] [cursor=pointer]:
+            - /url: /
+          - link "Tính TCO" [ref=f20e21] [cursor=pointer]:
+            - /url: /tco
+          - link "So sánh" [ref=f20e23] [cursor=pointer]:
+            - /url: /compare
+          - link "Danh sách xe" [ref=f20e24] [cursor=pointer]:
+            - /url: /browse
+          - link "Lịch sử" [ref=f20e25] [cursor=pointer]:
+            - /url: /history
+          - link "Phương pháp" [ref=f20e26] [cursor=pointer]:
+            - /url: /methodology
+        - generic [ref=f20e27]:
+          - group "Ngôn ngữ" [ref=f20e28]:
+            - button "Tiếng Anh" [ref=f20e29] [cursor=pointer]: EN
+            - button "Tiếng Việt" [pressed] [ref=f20e30] [cursor=pointer]: VI
+          - button "Chuyển sang chế độ sáng" [ref=f20e31] [cursor=pointer]
+    - main [ref=f20e38]:
+      - navigation "Breadcrumb" [ref=f20e39]:
+        - list [ref=f20e40]:
+          - listitem [ref=f20e41]:
+            - link "Trang chủ" [ref=f20e42] [cursor=pointer]:
+              - /url: /
+          - listitem [ref=f20e43]:
+            - generic [ref=f20e44]: /
+            - generic [ref=f20e45]: Tính TCO
+      - generic [ref=f20e47]:
+        - generic [ref=f20e48]:
+          - generic [ref=f20e49]:
+            - generic [ref=f20e50]:
+              - generic [ref=f20e51]: Tìm xe
+              - generic [ref=f20e52]:
+                - combobox "Tìm xe" [ref=f20e53]: Toyota Vios 1.5G
+                - button "Xóa" [ref=f20e487] [cursor=pointer]
+            - generic [ref=f20e54]:
+              - generic [ref=f20e55]: Tỉnh/Thành phố
+              - combobox "Tỉnh/Thành phố" [ref=f20e56]:
+                - option "Hà Nội" [selected]
+                - option "Thành Phố Hồ Chí Minh"
+                - option "Đà Nẵng"
+                - option "Huế"
+                - option "Cần Thơ"
+                - option "Hải Phòng"
+                - option "An Giang"
+                - option "Bắc Ninh"
+                - option "Cà Mau"
+                - option "Cao Bằng"
+                - option "Đắk Lắk"
+                - option "Điện Biên"
+                - option "Đồng Nai"
+                - option "Đồng Tháp"
+                - option "Gia Lai"
+                - option "Hà Tĩnh"
+                - option "Hưng Yên"
+                - option "Khánh Hòa"
+                - option "Lai Châu"
+                - option "Lâm Đồng"
+                - option "Lạng Sơn"
+                - option "Lào Cai"
+                - option "Nghệ An"
+                - option "Ninh Bình"
+                - option "Phú Thọ"
+                - option "Quảng Ngãi"
+                - option "Quảng Ninh"
+                - option "Quảng Trị"
+                - option "Sơn La"
+                - option "Thái Nguyên"
+                - option "Thanh Hóa"
+                - option "Tây Ninh"
+                - option "Tuyên Quang"
+                - option "Vĩnh Long"
+            - generic [ref=f20e58]:
+              - generic [ref=f20e59]:
+                - text: "Số km/năm:"
+                - spinbutton "Số km/năm" [ref=f20e60] [cursor=pointer]: 15,000
+              - slider "Số km/năm" [ref=f20e61] [cursor=pointer]: "15000"
+            - generic [ref=f20e63]:
+              - generic [ref=f20e64]:
+                - text: "Số năm sở hữu:"
+                - spinbutton "Số năm sở hữu" [ref=f20e65] [cursor=pointer]: "5"
+              - slider "Số năm sở hữu" [ref=f20e66] [cursor=pointer]: "5"
+            - generic [ref=f20e67]:
+              - generic [ref=f20e68]:
+                - text: "% đường phố:"
+                - generic [ref=f20e69]: 30%
+              - slider "% đường phố" [ref=f20e70] [cursor=pointer]: "30"
+              - generic [ref=f20e71]:
+                - generic [ref=f20e72]: Chỉ cao tốc
+                - generic [ref=f20e73]: Chỉ đô thị
+            - generic [ref=f20e74]:
+              - 'checkbox "Chi phí cơ hội Lợi suất danh nghĩa hàng năm của số tiền bạn không bỏ ra (ví dụ: quỹ chỉ số ~6-8%/năm)" [ref=f20e75]'
+              - generic [ref=f20e76]:
+                - text: Chi phí cơ hội
+                - generic [ref=f20e77]: "Lợi suất danh nghĩa hàng năm của số tiền bạn không bỏ ra (ví dụ: quỹ chỉ số ~6-8%/năm)"
+            - generic [ref=f20e78]:
+              - checkbox "Giờ cao điểm Tinh chỉnh hiệu suất đô thị theo loại động cơ — phạt ICE (1,65 lên 2,0 lần), lợi EV/HEV nhờ phanh tái tạo" [ref=f20e79]
+              - generic [ref=f20e80]:
+                - text: Giờ cao điểm
+                - generic [ref=f20e81]: Tinh chỉnh hiệu suất đô thị theo loại động cơ — phạt ICE (1,65 lên 2,0 lần), lợi EV/HEV nhờ phanh tái tạo
+            - generic [ref=f20e82]:
+              - checkbox "Thêm bảo hiểm thân vỏ (tự nguyện) Khoảng 1,5% giá xe mỗi năm (mức PVI, Bảo Việt, Bảo Minh)" [ref=f20e83]
+              - generic [ref=f20e84]:
+                - text: Thêm bảo hiểm thân vỏ (tự nguyện)
+                - generic [ref=f20e85]: Khoảng 1,5% giá xe mỗi năm (mức PVI, Bảo Việt, Bảo Minh)
+            - button "Đặt lại" [ref=f20e492] [cursor=pointer]
+            - link [ref=f20e87] [cursor=pointer]:
+              - /url: /methodology
+              - button "Chúng tôi đã tính như thế nào?" [ref=f20e88]
+          - generic [ref=f20e493]:
+            - button "Lưu vào lịch sử" [ref=f20e494] [cursor=pointer]
+            - link [ref=f20e495] [cursor=pointer]:
+              - /url: /compare?car=vios_2026
+              - button "So sánh với xe khác" [ref=f20e496]
+        - status [ref=f20e497]:
+          - generic [ref=f20e498]:
+            - img "vios_2026 right-side profile" [ref=f20e502]
+            - generic [ref=f20e504]:
+              - generic [ref=f20e505]:
+                - heading "Toyota Vios 1.5G" [level=2] [ref=f20e506]
+                - generic [ref=f20e507]:
+                  - button "Thao tác khác" [ref=f20e509] [cursor=pointer]
+                  - button "Đi tới tính toán vay xe" [ref=f20e514] [cursor=pointer]
+              - generic [ref=f20e515]:
+                - generic [ref=f20e516]:
+                  - generic [ref=f20e517]: Giá lăn bánh
+                  - generic [ref=f20e518]: 626.737.000 ₫
+                - generic [ref=f20e519]:
+                  - generic [ref=f20e520]: TCO thực
+                  - generic [ref=f20e521]: 638.406.111 ₫
+                  - generic [ref=f20e522]: 603.479.489 ₫ – 673.332.733 ₫
+                - generic [ref=f20e523]:
+                  - generic [ref=f20e524]: Trung bình tháng
+                  - generic [ref=f20e525]: 2.863.421 ₫
+          - generic [ref=f20e526]:
+            - heading "Biểu đồ trực quan" [level=3] [ref=f20e527]
+            - generic [ref=f20e528]:
+              - generic [ref=f20e529]:
+                - heading "Cơ cấu chi phí" [level=4] [ref=f20e530]
+                - img "Cơ cấu chi phí" [ref=f20e531]:
+                  - application [ref=f20e534]
+                - table [ref=f20e535]:
+                  - caption [ref=f20e536]: Cơ cấu chi phí
+                  - rowgroup [ref=f20e537]:
+                    - row [ref=f20e538]:
+                      - columnheader "Chỉ số" [ref=f20e539]
+                      - columnheader "Số tiền" [ref=f20e540]
+                  - rowgroup [ref=f20e541]:
+                    - row [ref=f20e542]:
+                      - rowheader "Giá niêm yết" [ref=f20e543]
+                      - cell "545.000.000 ₫" [ref=f20e544]
+                    - row [ref=f20e545]:
+                      - rowheader "Thuế trước bạ" [ref=f20e546]
+                      - cell "65.400.000 ₫" [ref=f20e547]
+                    - row [ref=f20e548]:
+                      - rowheader "Nhiên liệu / Năng lượng" [ref=f20e549]
+                      - cell "137.477.250 ₫" [ref=f20e550]
+                    - row [ref=f20e551]:
+                      - rowheader "Bảo dưỡng" [ref=f20e552]
+                      - cell "26.000.000 ₫" [ref=f20e553]
+                    - row [ref=f20e554]:
+                      - rowheader "Bảo hiểm & Phí" [ref=f20e555]
+                      - cell "8.328.000 ₫" [ref=f20e556]
+                    - row [ref=f20e557]:
+                      - rowheader "Tổng khấu hao" [ref=f20e558]
+                      - cell "227.663.861 ₫" [ref=f20e559]
+              - generic [ref=f20e560]:
+                - heading "Chi phí vận hành theo thời gian" [level=4] [ref=f20e561]
+                - img "Chi phí vận hành theo thời gian over 5 years" [ref=f20e562]:
+                  - generic [ref=f20e790]:
+                    - list [ref=f20e792]:
+                      - listitem [ref=f20e793]:
+                        - img "Chi phí vận hành legend icon" [ref=f20e794]
+                        - text: Chi phí vận hành
+                      - listitem [ref=f20e796]:
+                        - img "Giá trị còn lại của xe legend icon" [ref=f20e797]
+                        - text: Giá trị còn lại của xe
+                    - application [ref=f20e799]:
+                      - generic [ref=f20e833]:
+                        - generic [ref=f20e834]:
+                          - generic [ref=f20e835]: Y0
+                          - generic [ref=f20e837]: "1"
+                          - generic [ref=f20e839]: "2"
+                          - generic [ref=f20e841]: "3"
+                          - generic [ref=f20e843]: "4"
+                          - generic [ref=f20e845]: "5"
+                        - generic [ref=f20e847]:
+                          - generic [ref=f20e848]: 150M
+                          - generic [ref=f20e850]: 300M
+                          - generic [ref=f20e852]: 450M
+                          - generic [ref=f20e854]: 600M
+                - table [ref=f20e567]:
+                  - caption [ref=f20e568]: Chi phí vận hành theo thời gian
+                  - rowgroup [ref=f20e569]:
+                    - row [ref=f20e570]:
+                      - columnheader "Số năm sở hữu" [ref=f20e571]
+                      - columnheader "Giá trị còn lại của xe" [ref=f20e572]
+                      - columnheader "Chi phí vận hành" [ref=f20e573]
+                  - rowgroup [ref=f20e574]:
+                    - row [ref=f20e575]:
+                      - rowheader "Y0" [ref=f20e576]
+                      - cell "545.000.000 ₫" [ref=f20e577]
+                      - cell "0 ₫" [ref=f20e578]
+                    - row [ref=f20e856]:
+                      - rowheader "1" [ref=f20e580]
+                      - cell "451.661.329 ₫" [ref=f20e857]
+                      - cell "63.435.450 ₫" [ref=f20e858]
+                    - row [ref=f20e859]:
+                      - rowheader "2" [ref=f20e584]
+                      - cell "434.128.332 ₫" [ref=f20e860]
+                      - cell "129.542.900 ₫" [ref=f20e861]
+                    - row [ref=f20e862]:
+                      - rowheader "3" [ref=f20e588]
+                      - cell "391.570.099 ₫" [ref=f20e863]
+                      - cell "196.325.350 ₫" [ref=f20e864]
+                    - row [ref=f20e865]:
+                      - rowheader "4" [ref=f20e592]
+                      - cell "354.993.907 ₫" [ref=f20e866]
+                      - cell "263.782.800 ₫" [ref=f20e867]
+                    - row [ref=f20e868]:
+                      - rowheader "5" [ref=f20e596]
+                      - cell "317.336.139 ₫" [ref=f20e869]
+                      - cell "332.255.250 ₫" [ref=f20e870]
+          - generic [ref=f20e599]:
+            - heading "Phân tích chi phí" [level=3] [ref=f20e600]
+            - generic [ref=f20e601]:
+              - generic [ref=f20e602]:
+                - button "Lăn bánh 626.737.000 ₫" [expanded] [ref=f20e603] [cursor=pointer]:
+                  - generic [ref=f20e604]:
+                    - generic [ref=f20e605]: ▾
+                    - text: Lăn bánh
+                  - generic [ref=f20e606]: 626.737.000 ₫
+                - generic [ref=f20e608]:
+                  - generic [ref=f20e609]:
+                    - generic [ref=f20e610]: Giá niêm yết
+                    - generic [ref=f20e611]: 545.000.000 ₫
+                  - generic [ref=f20e612]:
+                    - generic [ref=f20e613]: Thuế trước bạ
+                    - generic [ref=f20e614]: 65.400.000 ₫
+                  - generic [ref=f20e615]:
+                    - generic [ref=f20e616]: Thuế suất
+                    - generic [ref=f20e617]:
+                      - generic [ref=f20e618]:
+                        - generic [ref=f20e619]: Thuế trước bạ
+                        - generic [ref=f20e621]: 65.400.000 ₫
+                      - generic [ref=f20e622]:
+                        - generic [ref=f20e623]: Phí biển số
+                        - generic [ref=f20e625]: 14.000.000 ₫
+                      - generic [ref=f20e626]:
+                        - generic [ref=f20e627]: Phí đăng kiểm
+                        - generic [ref=f20e629]: 340.000 ₫
+                      - generic [ref=f20e631]:
+                        - generic [ref=f20e632]: Tổng đăng ký
+                        - generic [ref=f20e634]: 79.740.000 ₫
+                      - generic [ref=f20e635]:
+                        - generic [ref=f20e636]: Phí đường bộ (năm 1)
+                        - generic [ref=f20e638]: 1.560.000 ₫
+                      - generic [ref=f20e639]:
+                        - generic [ref=f20e640]: Bảo hiểm TNDS (năm 1)
+                        - generic [ref=f20e642]: 437.000 ₫
+                      - generic [ref=f20e644]:
+                        - generic [ref=f20e645]: Giá lăn bánh
+                        - generic [ref=f20e646]: 626.737.000 ₫
+              - generic [ref=f20e647]:
+                - button "Vận hành 329.345.250 ₫" [expanded] [ref=f20e648] [cursor=pointer]:
+                  - generic [ref=f20e649]:
+                    - generic [ref=f20e650]: ▾
+                    - text: Vận hành
+                  - generic [ref=f20e651]: 329.345.250 ₫
+                - generic [ref=f20e653]:
+                  - generic [ref=f20e654]:
+                    - generic [ref=f20e655]: Nhiên liệu / Năng lượng
+                    - generic [ref=f20e656]: 137.477.250 ₫
+                  - button "Cách tính chi phí nhiên liệu 7.30 L/100km" [ref=f20e658] [cursor=pointer]:
+                    - generic [ref=f20e659]:
+                      - generic [ref=f20e660]: ▾
+                      - text: Cách tính chi phí nhiên liệu
+                    - generic [ref=f20e661]: 7.30 L/100km
+                  - generic [ref=f20e662]:
+                    - generic [ref=f20e663]: Bảo dưỡng
+                    - generic [ref=f20e664]: 26.000.000 ₫
+                  - generic [ref=f20e665]:
+                    - generic [ref=f20e666]: Bảo hiểm & Phí
+                    - generic [ref=f20e667]: 8.328.000 ₫
+                  - generic [ref=f20e668]:
+                    - generic [ref=f20e669]: Đăng kiểm định kỳ
+                    - generic [ref=f20e670]: 340.000 ₫
+                  - generic [ref=f20e671]:
+                    - generic [ref=f20e672]: Đỗ xe & Phí cầu đường
+                    - generic [ref=f20e673]: 157.200.000 ₫
+                  - generic [ref=f20e675]:
+                    - generic [ref=f20e676]: Tổng chi phí vận hành
+                    - generic [ref=f20e677]: 329.345.250 ₫
+              - generic [ref=f20e678]:
+                - button "Khấu hao & Bán lại -317.336.139 ₫" [expanded] [ref=f20e679] [cursor=pointer]:
+                  - generic [ref=f20e680]:
+                    - generic [ref=f20e681]: ▾
+                    - text: Khấu hao & Bán lại
+                  - generic [ref=f20e682]: "-317.336.139 ₫"
+                - generic [ref=f20e684]:
+                  - generic [ref=f20e685]:
+                    - generic [ref=f20e686]:
+                      - text: Giá bán lại dự đoán
+                      - generic [ref=f20e687]: Dự báo ML
+                      - generic [ref=f20e689]: 315.917.050 ₫ – 318.755.229 ₫
+                    - generic [ref=f20e690]: 317.336.139 ₫
+                  - generic [ref=f20e691]:
+                    - generic [ref=f20e692]: Tổng khấu hao
+                    - generic [ref=f20e693]: 227.663.861 ₫
+              - generic [ref=f20e694]:
+                - generic [ref=f20e695]:
+                  - generic [ref=f20e696]: TCO thực
+                  - generic [ref=f20e697]: 638.406.111 ₫
+                - generic [ref=f20e698]:
+                  - generic [ref=f20e699]: Khoảng tin cậy 95%
+                  - generic [ref=f20e700]:
+                    - generic [ref=f20e701]: 603.479.489 ₫
+                    - generic [ref=f20e702]: –
+                    - generic [ref=f20e703]: 673.332.733 ₫
+                    - generic [ref=f20e704]: (95%)
+                  - generic [ref=f20e705]: Trong 19/20 trường hợp, giá bán lại thực tế nằm trong khoảng này.
+                  - generic [ref=f20e706]: Khoảng tin cậy không bao gồm độ bất định của giá trị bán lại — sai lệch thực tế có thể lớn hơn.
+                  - generic [ref=f20e707]: Ước tính phí giữ xe dựa trên mức phí trung bình giữa các khu vực đô thị. Nhà cao cấp và khu du lịch có thể khác.
+            - generic [ref=f20e708]: "Lệ phí theo Thông tư 155/2025. Tính gần nhất: 8/8/2026."
+            - generic [ref=f20e711]:
+              - generic [ref=f20e712]: ✓
+              - text: Dữ liệu mới nhất
+            - generic [ref=f20e713]:
+              - 'img "TCO thực vs Giá lăn bánh: 626.737.000 ₫. TCO thực: 638.406.111 ₫ (102% of on-road)." [ref=f20e714]':
+                - generic [ref=f20e715]:
+                  - generic [ref=f20e716]: TCO thực vs Giá lăn bánh
+                  - generic [ref=f20e717]: 102%
+              - paragraph [ref=f20e719]: "Tổng chi phí sở hữu của xe này bằng 102% giá lăn bánh, và chi phí hàng năm của bạn cao hơn 36% trong 70 mẫu xe. (Khoảng: 8.795.148 ₫–62.051.809 ₫/năm)"
+          - group [ref=f20e720]:
+            - generic "TCO bao gồm những gì?" [ref=f20e721] [cursor=pointer]: ▼
+          - group [ref=f20e724]:
+            - generic "Tại sao giá mua lại quan trọng?" [ref=f20e725] [cursor=pointer]: ▼
+          - group [ref=f20e728]:
+            - generic "Ước tính bán lại ML là gì?" [ref=f20e729] [cursor=pointer]: ▼
+          - generic [ref=f20e732]:
+            - button "Vay mua xe Ước tính khoản trả hàng tháng cho xe này −" [expanded] [ref=f20e733] [cursor=pointer]:
+              - generic [ref=f20e734]:
+                - heading "Vay mua xe" [level=3] [ref=f20e735]
+                - paragraph [ref=f20e736]: Ước tính khoản trả hàng tháng cho xe này
+              - generic [ref=f20e737]: −
+            - generic [ref=f20e738]:
+              - generic [ref=f20e739]:
+                - generic [ref=f20e740]:
+                  - generic [ref=f20e741]:
+                    - text: "Trả trước:"
+                    - generic [ref=f20e742]: 30%
+                  - slider "Trả trước" [ref=f20e743] [cursor=pointer]: "30"
+                - generic [ref=f20e744]:
+                  - generic [ref=f20e745]:
+                    - text: "Lãi suất:"
+                    - generic [ref=f20e746]: 8.5%
+                  - slider "Lãi suất" [ref=f20e747] [cursor=pointer]: "8.5"
+                - generic [ref=f20e748]:
+                  - generic [ref=f20e749]:
+                    - text: "Thời hạn vay:"
+                    - generic [ref=f20e750]: 5Y
+                  - slider "Thời hạn vay" [ref=f20e751] [cursor=pointer]: "5"
+              - generic [ref=f20e752]:
+                - generic [ref=f20e753]:
+                  - generic [ref=f20e754]: Số tiền vay
+                  - generic [ref=f20e755]: 438.715.900 ₫
+                - generic [ref=f20e756]:
+                  - generic [ref=f20e757]: Trả hàng tháng
+                  - generic [ref=f20e758]: 9.000.929 ₫
+                - generic [ref=f20e759]:
+                  - generic [ref=f20e760]: Tổng lãi
+                  - generic [ref=f20e761]: 101.339.810 ₫
+                - generic [ref=f20e762]:
+                  - generic [ref=f20e763]: Tổng thanh toán
+                  - generic [ref=f20e764]: 540.055.710 ₫
+                - generic [ref=f20e765]:
+                  - generic [ref=f20e766]: Chi phí hiệu dụng
+                  - generic [ref=f20e767]: 728.076.810 ₫
+    - contentinfo [ref=f20e99]:
+      - generic [ref=f20e101]:
+        - generic [ref=f20e102]:
+          - generic "ViDrive" [ref=f20e103]:
+            - img "ViDrive" [ref=f20e104]
+          - paragraph [ref=f20e105]: Công cụ tính tổng chi phí sở hữu xe tại Việt Nam.
+          - paragraph [ref=f20e106]: © 2026 ViDrive. Ước tính — không phải lời khuyên tài chính.
+        - generic [ref=f20e107]:
+          - heading "Liên hệ" [level=3] [ref=f20e108]
+          - list [ref=f20e109]:
+            - listitem [ref=f20e110]:
+              - link "tranhoanglethanh@gmail.com" [ref=f20e114] [cursor=pointer]:
+                - /url: mailto:tranhoanglethanh@gmail.com
+            - listitem [ref=f20e115]:
+              - link "+84 866 828 946" [ref=f20e118] [cursor=pointer]:
+                - /url: tel:+84866828946
+        - generic [ref=f20e119]:
+          - heading "Kết nối" [level=3] [ref=f20e120]
+          - generic [ref=f20e121]:
+            - link "GitHub" [ref=f20e122] [cursor=pointer]:
+              - /url: https://github.com/PearTr0191
+            - link "Zalo" [ref=f20e125] [cursor=pointer]:
+              - /url: https://zalo.me/0866828946
+          - navigation "Pháp lý" [ref=f20e129]:
+            - link "Điều khoản sử dụng" [ref=f20e130] [cursor=pointer]:
+              - /url: /terms
+            - link "Chính sách bảo mật" [ref=f20e131] [cursor=pointer]:
+              - /url: /privacy
+  - button "Xem lời nhắn từ người phát triển" [ref=f20e132] [cursor=pointer]

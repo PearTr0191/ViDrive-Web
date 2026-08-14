@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <!-- Theme-adaptive favicon. The in-app theme (light/dark, toggled in the UI and
+         persisted to localStorage 'vidrive-theme') drives the favicon. ThemeProvider
+         in src/lib/theme.tsx swaps the href between the light and dark SVG variants on
+         every theme change, with a cache-busting query so Chromium repaints reliably. -->
+    <link id="favicon" rel="icon" type="image/svg+xml" href="/favicon-light.svg" />
+    <link rel="apple-touch-icon" href="/favicon-light.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ViDrive — TCO Calculator</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Playfair+Display:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

@@ -1,0 +1,38 @@
+{
+  "$schema": "https://app.kilo.ai/config.json",
+  // Project-level config for ViDrive Web.
+  // Global config (~/.config/kilo/kilo.jsonc) provides providers, MCP, agents, skills, commands,
+  //   and global rules (ECC Cline pack) via ~/.config/kilo/rules/**/*.md
+  // Here we only add the ViDrive-specific memory-bank as project-level instructions.
+  // Both global and project instructions load (global first, then project) — no override.
+  "instructions": [
+    ".kilo/memory-bank/consolidated_learnings.md",
+    ".kilo/memory-bank/vidrive_design_system.md"
+  ],
+  "compaction": {
+    "auto": true,
+    "prune": true,
+    "threshold_percent": 80
+  },
+  "watcher": {
+    "ignore": [
+      "**/node_modules",
+      "**/dist",
+      "**/.git",
+      "**/.vite",
+      "**/.playwright-mcp",
+      "**/test-results",
+      "**/playwright-report",
+      "**/coverage",
+      "**/__pycache__",
+      "**/*.pyc",
+      "**/*.pkl",
+      "**/*.log",
+      "**/.env",
+      ".kilo/node_modules",
+      ".kilo/plans",
+      "backend/.pytest_cache",
+      "design-system"
+    ]
+  }
+}

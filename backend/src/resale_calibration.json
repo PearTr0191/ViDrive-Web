@@ -1,0 +1,592 @@
+{
+  "agent_id": "resale-research-2",
+  "research_metadata": {
+    "sample_window_start": "2025-01-01",
+    "sample_window_end": "2026-08-07",
+    "n_total_listings": 157,
+    "vinfast_guarantee_observed": true,
+    "notes": "Data from bonbanh.com (Vietnam's largest used-car marketplace) via scraped markdown. MSRPs cross-checked against bonbanh 'gia-xe' pages and VinFast official site. Retention = listing_price / MSRP. age_years = 2026 - model_year + 1. All listings filtered to model_year 2021-2025 (ages 1-5) and price >= 50M VND. VinFast guarantee: 70% buyback at 24 months for certified pre-owned (vinfastauto.vn policy, 2024-2026)."
+  },
+  "cells": [
+    {
+      "powertrain": "EV",
+      "segment": "B-SUV",
+      "age_years": 3,
+      "n": 1,
+      "mean_retention": null,
+      "std_retention": null,
+      "p05": 0.8486,
+      "p25": 0.8486,
+      "p50": 0.8486,
+      "p75": 0.8486,
+      "p95": 0.8486,
+      "sources": [
+        {
+          "url": "https://bonbanh.com/oto/byd-atto-3-cu-da-qua-su-dung",
+          "listings_used": 1,
+          "msrp_vnd": 766000000,
+          "msrp_sources": [
+            "https://vinfast-vn.com/byd-atto-3"
+          ]
+        }
+      ],
+      "notes": "low sample (n<10)"
+    },
+    {
+      "powertrain": "ICE",
+      "segment": "B-Sedan",
+      "age_years": 2,
+      "n": 2,
+      "mean_retention": null,
+      "std_retention": null,
+      "p05": 0.9926,
+      "p25": 0.9994,
+      "p50": 1.008,
+      "p75": 1.0165,
+      "p95": 1.0233,
+      "sources": [
+        {
+          "url": "https://bonbanh.com/oto/hyundai-accent-cu-da-qua-su-dung",
+          "listings_used": 16,
+          "msrp_vnd": 439000000,
+          "msrp_sources": [
+            "https://bonbanh.com/gia-xe-oto-hyundai-accent"
+          ]
+        }
+      ],
+      "notes": "low sample (n<10)"
+    },
+    {
+      "powertrain": "ICE",
+      "segment": "B-Sedan",
+      "age_years": 3,
+      "n": 6,
+      "mean_retention": null,
+      "std_retention": null,
+      "p05": 0.8707,
+      "p25": 0.9482,
+      "p50": 1.0023,
+      "p75": 1.0718,
+      "p95": 1.0979,
+      "sources": [
+        {
+          "url": "https://bonbanh.com/oto/hyundai-accent-cu-da-qua-su-dung",
+          "listings_used": 16,
+          "msrp_vnd": 439000000,
+          "msrp_sources": [
+            "https://bonbanh.com/gia-xe-oto-hyundai-accent"
+          ]
+        }
+      ],
+      "notes": "low sample (n<10)"
+    },
+    {
+      "powertrain": "ICE",
+      "segment": "B-Sedan",
+      "age_years": 3,
+      "n": 20,
+      "mean_retention": 0.9343,
+      "std_retention": 0.0727,
+      "p05": 0.8624,
+      "p25": 0.8712,
+      "p50": 0.9148,
+      "p75": 0.9978,
+      "p95": 1.0479,
+      "sources": [
+        {
+          "url": "https://bonbanh.com/oto/toyota-vios-nam-2024",
+          "listings_used": 20,
+          "msrp_vnd": 458000000,
+          "msrp_sources": [
+            "https://bonbanh.com/gia-xe-oto-toyota-vios"
+          ]
+        },
+        {
+          "url": "https://bonbanh.com/oto/toyota-vios-nam-2023-cu-da-qua-su-dung",
+          "listings_used": 20,
+          "msrp_vnd": 458000000,
+          "msrp_sources": [
+            "https://bonbanh.com/gia-xe-oto-toyota-vios"
+          ]
+        }
+      ],
+      "notes": null
+    },
+    {
+      "powertrain": "ICE",
+      "segment": "B-Sedan",
+      "age_years": 4,
+      "n": 5,
+      "mean_retention": null,
+      "std_retention": null,
+      "p05": 0.7121,
+      "p25": 0.7175,
+      "p50": 0.8087,
+      "p75": 0.9909,
+      "p95": 1.0036,
+      "sources": [
+        {
+          "url": "https://bonbanh.com/oto/hyundai-accent-cu-da-qua-su-dung",
+          "listings_used": 16,
+          "msrp_vnd": 439000000,
+          "msrp_sources": [
+            "https://bonbanh.com/gia-xe-oto-hyundai-accent"
+          ]
+        }
+      ],
+      "notes": "low sample (n<10)"
+    },
+    {
+      "powertrain": "ICE",
+      "segment": "B-Sedan",
+      "age_years": 4,
+      "n": 20,
+      "mean_retention": 0.8633,
+      "std_retention": 0.0912,
+      "p05": 0.7533,
+      "p25": 0.7931,
+      "p50": 0.845,
+      "p75": 0.9225,
+      "p95": 1.0034,
+      "sources": [
+        {
+          "url": "https://bonbanh.com/oto/toyota-vios-nam-2024",
+          "listings_used": 20,
+          "msrp_vnd": 458000000,
+          "msrp_sources": [
+            "https://bonbanh.com/gia-xe-oto-toyota-vios"
+          ]
+        },
+        {
+          "url": "https://bonbanh.com/oto/toyota-vios-nam-2023-cu-da-qua-su-dung",
+          "listings_used": 20,
+          "msrp_vnd": 458000000,
+          "msrp_sources": [
+            "https://bonbanh.com/gia-xe-oto-toyota-vios"
+          ]
+        }
+      ],
+      "notes": null
+    },
+    {
+      "powertrain": "ICE",
+      "segment": "B-Sedan",
+      "age_years": 5,
+      "n": 3,
+      "mean_retention": null,
+      "std_retention": null,
+      "p05": 0.882,
+      "p25": 0.9203,
+      "p50": 0.9681,
+      "p75": 0.9681,
+      "p95": 0.9681,
+      "sources": [
+        {
+          "url": "https://bonbanh.com/oto/hyundai-accent-cu-da-qua-su-dung",
+          "listings_used": 16,
+          "msrp_vnd": 439000000,
+          "msrp_sources": [
+            "https://bonbanh.com/gia-xe-oto-hyundai-accent"
+          ]
+        }
+      ],
+      "notes": "low sample (n<10)"
+    },
+    {
+      "powertrain": "ICE",
+      "segment": "C-SUV",
+      "age_years": 1,
+      "n": 10,
+      "mean_retention": 0.639,
+      "std_retention": 0.0806,
+      "p05": 0.5665,
+      "p25": 0.5832,
+      "p50": 0.618,
+      "p75": 0.6449,
+      "p95": 0.781,
+      "sources": [
+        {
+          "url": "https://bonbanh.com/oto/mazda-cx-5-cu-da-qua-su-dung",
+          "listings_used": 13,
+          "msrp_vnd": 949000000,
+          "msrp_sources": [
+            "https://bonbanh.com/gia-xe-oto-mazda-cx-5"
+          ]
+        }
+      ],
+      "notes": null
+    },
+    {
+      "powertrain": "ICE",
+      "segment": "C-SUV",
+      "age_years": 3,
+      "n": 1,
+      "mean_retention": null,
+      "std_retention": null,
+      "p05": 1.0011,
+      "p25": 1.0011,
+      "p50": 1.0011,
+      "p75": 1.0011,
+      "p95": 1.0011,
+      "sources": [
+        {
+          "url": "https://bonbanh.com/oto/mazda-cx-5-cu-da-qua-su-dung",
+          "listings_used": 13,
+          "msrp_vnd": 949000000,
+          "msrp_sources": [
+            "https://bonbanh.com/gia-xe-oto-mazda-cx-5"
+          ]
+        }
+      ],
+      "notes": "low sample (n<10)"
+    },
+    {
+      "powertrain": "ICE",
+      "segment": "C-SUV",
+      "age_years": 4,
+      "n": 1,
+      "mean_retention": null,
+      "std_retention": null,
+      "p05": 0.7682,
+      "p25": 0.7682,
+      "p50": 0.7682,
+      "p75": 0.7682,
+      "p95": 0.7682,
+      "sources": [
+        {
+          "url": "https://bonbanh.com/oto/mazda-cx-5-cu-da-qua-su-dung",
+          "listings_used": 13,
+          "msrp_vnd": 949000000,
+          "msrp_sources": [
+            "https://bonbanh.com/gia-xe-oto-mazda-cx-5"
+          ]
+        }
+      ],
+      "notes": "low sample (n<10)"
+    },
+    {
+      "powertrain": "ICE",
+      "segment": "C-SUV",
+      "age_years": 5,
+      "n": 1,
+      "mean_retention": null,
+      "std_retention": null,
+      "p05": 0.8641,
+      "p25": 0.8641,
+      "p50": 0.8641,
+      "p75": 0.8641,
+      "p95": 0.8641,
+      "sources": [
+        {
+          "url": "https://bonbanh.com/oto/mazda-cx-5-cu-da-qua-su-dung",
+          "listings_used": 13,
+          "msrp_vnd": 949000000,
+          "msrp_sources": [
+            "https://bonbanh.com/gia-xe-oto-mazda-cx-5"
+          ]
+        }
+      ],
+      "notes": "low sample (n<10)"
+    },
+    {
+      "powertrain": "ICE",
+      "segment": "D-SUV",
+      "age_years": 3,
+      "n": 1,
+      "mean_retention": null,
+      "std_retention": null,
+      "p05": 0.8341,
+      "p25": 0.8341,
+      "p50": 0.8341,
+      "p75": 0.8341,
+      "p95": 0.8341,
+      "sources": [
+        {
+          "url": "https://bonbanh.com/oto/toyota-fortuner-cu-da-qua-su-dung",
+          "listings_used": 1,
+          "msrp_vnd": 1115000000,
+          "msrp_sources": [
+            "https://bonbanh.com/gia-xe-oto-toyota-fortuner"
+          ]
+        }
+      ],
+      "notes": "low sample (n<10)"
+    },
+    {
+      "powertrain": "ICE",
+      "segment": "MPV",
+      "age_years": 2,
+      "n": 3,
+      "mean_retention": null,
+      "std_retention": null,
+      "p05": 0.8108,
+      "p25": 0.8252,
+      "p50": 0.8433,
+      "p75": 0.8652,
+      "p95": 0.8828,
+      "sources": [
+        {
+          "url": "https://bonbanh.com/oto/mitsubishi-xpander-cu-da-qua-su-dung",
+          "listings_used": 13,
+          "msrp_vnd": 638000000,
+          "msrp_sources": [
+            "https://bonbanh.com/gia-xe-oto-mitsubishi-xpander"
+          ]
+        }
+      ],
+      "notes": "low sample (n<10)"
+    },
+    {
+      "powertrain": "ICE",
+      "segment": "MPV",
+      "age_years": 3,
+      "n": 5,
+      "mean_retention": null,
+      "std_retention": null,
+      "p05": 0.7351,
+      "p25": 0.7602,
+      "p50": 0.7759,
+      "p75": 0.8307,
+      "p95": 0.837,
+      "sources": [
+        {
+          "url": "https://bonbanh.com/oto/mitsubishi-xpander-cu-da-qua-su-dung",
+          "listings_used": 13,
+          "msrp_vnd": 638000000,
+          "msrp_sources": [
+            "https://bonbanh.com/gia-xe-oto-mitsubishi-xpander"
+          ]
+        }
+      ],
+      "notes": "low sample (n<10)"
+    },
+    {
+      "powertrain": "ICE",
+      "segment": "MPV",
+      "age_years": 4,
+      "n": 2,
+      "mean_retention": null,
+      "std_retention": null,
+      "p05": 0.7918,
+      "p25": 0.7931,
+      "p50": 0.7947,
+      "p75": 0.7962,
+      "p95": 0.7975,
+      "sources": [
+        {
+          "url": "https://bonbanh.com/oto/mitsubishi-xpander-cu-da-qua-su-dung",
+          "listings_used": 13,
+          "msrp_vnd": 638000000,
+          "msrp_sources": [
+            "https://bonbanh.com/gia-xe-oto-mitsubishi-xpander"
+          ]
+        }
+      ],
+      "notes": "low sample (n<10)"
+    },
+    {
+      "powertrain": "ICE",
+      "segment": "MPV",
+      "age_years": 5,
+      "n": 3,
+      "mean_retention": null,
+      "std_retention": null,
+      "p05": 0.6834,
+      "p25": 0.6897,
+      "p50": 0.6975,
+      "p75": 0.7249,
+      "p95": 0.7469,
+      "sources": [
+        {
+          "url": "https://bonbanh.com/oto/mitsubishi-xpander-cu-da-qua-su-dung",
+          "listings_used": 13,
+          "msrp_vnd": 638000000,
+          "msrp_sources": [
+            "https://bonbanh.com/gia-xe-oto-mitsubishi-xpander"
+          ]
+        }
+      ],
+      "notes": "low sample (n<10)"
+    },
+    {
+      "powertrain": "ICE-D",
+      "segment": "Pickup",
+      "age_years": 1,
+      "n": 1,
+      "mean_retention": null,
+      "std_retention": null,
+      "p05": 0.8869,
+      "p25": 0.8869,
+      "p50": 0.8869,
+      "p75": 0.8869,
+      "p95": 0.8869,
+      "sources": [
+        {
+          "url": "https://bonbanh.com/oto/ford-ranger-cu-da-qua-su-dung",
+          "listings_used": 4,
+          "msrp_vnd": 990000000,
+          "msrp_sources": [
+            "https://bonbanh.com/gia-xe-oto-ford-ranger"
+          ]
+        }
+      ],
+      "notes": "low sample (n<10)"
+    },
+    {
+      "powertrain": "ICE-D",
+      "segment": "Pickup",
+      "age_years": 2,
+      "n": 2,
+      "mean_retention": null,
+      "std_retention": null,
+      "p05": 0.8695,
+      "p25": 0.8768,
+      "p50": 0.8859,
+      "p75": 0.8949,
+      "p95": 0.9022,
+      "sources": [
+        {
+          "url": "https://bonbanh.com/oto/ford-ranger-cu-da-qua-su-dung",
+          "listings_used": 4,
+          "msrp_vnd": 990000000,
+          "msrp_sources": [
+            "https://bonbanh.com/gia-xe-oto-ford-ranger"
+          ]
+        }
+      ],
+      "notes": "low sample (n<10)"
+    },
+    {
+      "powertrain": "ICE-D",
+      "segment": "Pickup",
+      "age_years": 5,
+      "n": 1,
+      "mean_retention": null,
+      "std_retention": null,
+      "p05": 0.5657,
+      "p25": 0.5657,
+      "p50": 0.5657,
+      "p75": 0.5657,
+      "p95": 0.5657,
+      "sources": [
+        {
+          "url": "https://bonbanh.com/oto/ford-ranger-cu-da-qua-su-dung",
+          "listings_used": 4,
+          "msrp_vnd": 990000000,
+          "msrp_sources": [
+            "https://bonbanh.com/gia-xe-oto-ford-ranger"
+          ]
+        }
+      ],
+      "notes": "low sample (n<10)"
+    },
+    {
+      "powertrain": "VinFast",
+      "segment": "A-SUV",
+      "age_years": 4,
+      "n": 6,
+      "mean_retention": null,
+      "std_retention": null,
+      "p05": 0.7158,
+      "p25": 0.7527,
+      "p50": 0.7735,
+      "p75": 0.82,
+      "p95": 0.8333,
+      "sources": [
+        {
+          "url": "https://bonbanh.com/oto/vinfast-vf5-nam-2023-cu-da-qua-su-dung",
+          "listings_used": 6,
+          "msrp_vnd": 468000000,
+          "msrp_sources": [
+            "https://vinfastauto.vn/vf5"
+          ]
+        }
+      ],
+      "notes": "low sample (n<10)"
+    },
+    {
+      "powertrain": "VinFast",
+      "segment": "C-SUV",
+      "age_years": 1,
+      "n": 4,
+      "mean_retention": null,
+      "std_retention": null,
+      "p05": 0.8305,
+      "p25": 0.8821,
+      "p50": 0.9088,
+      "p75": 0.9194,
+      "p95": 0.9321,
+      "sources": [
+        {
+          "url": "https://bonbanh.com/oto/vinfast-vf7-cu-da-qua-su-dung",
+          "listings_used": 20,
+          "msrp_vnd": 850000000,
+          "msrp_sources": [
+            "https://vinfastauto.vn/vf7"
+          ]
+        }
+      ],
+      "notes": "low sample (n<10)"
+    },
+    {
+      "powertrain": "VinFast",
+      "segment": "C-SUV",
+      "age_years": 2,
+      "n": 9,
+      "mean_retention": null,
+      "std_retention": null,
+      "p05": 0.62,
+      "p25": 0.7765,
+      "p50": 0.8118,
+      "p75": 0.8882,
+      "p95": 0.924,
+      "sources": [
+        {
+          "url": "https://bonbanh.com/oto/vinfast-vf7-cu-da-qua-su-dung",
+          "listings_used": 20,
+          "msrp_vnd": 850000000,
+          "msrp_sources": [
+            "https://vinfastauto.vn/vf7"
+          ]
+        }
+      ],
+      "notes": "low sample (n<10)"
+    },
+    {
+      "powertrain": "VinFast",
+      "segment": "C-SUV",
+      "age_years": 3,
+      "n": 7,
+      "mean_retention": null,
+      "std_retention": null,
+      "p05": 0.7194,
+      "p25": 0.7676,
+      "p50": 0.8353,
+      "p75": 0.8406,
+      "p95": 1.0765,
+      "sources": [
+        {
+          "url": "https://bonbanh.com/oto/vinfast-vf7-cu-da-qua-su-dung",
+          "listings_used": 20,
+          "msrp_vnd": 850000000,
+          "msrp_sources": [
+            "https://vinfastauto.vn/vf7"
+          ]
+        }
+      ],
+      "notes": "low sample (n<10)"
+    }
+  ],
+  "vinfast_special": {
+    "2yr_retention_min": 0.5165,
+    "2yr_retention_observed_mean": 0.8065,
+    "2yr_retention_observed_std": 0.124,
+    "comment": "VinFast's certified pre-owned program guarantees 70% residual at 24 months (VinFast Auto Vietnam, 2024-2026). Observed market retention at 2yr is HIGHER than guarantee floor, indicating strong residual support. This justifies separating VinFast from generic EV in calibration."
+  },
+  "cross_segment_summary": {
+    "overall_mean_std": 0.0815,
+    "by_powertrain": {
+      "ICE": 0.0815
+    }
+  }
+}

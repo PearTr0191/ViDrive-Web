@@ -1,0 +1,25 @@
+{
+  "timestamp": "2026-08-04",
+  "author": null,
+  "locale": "en",
+  "user_agent": "curl/8.13.0",
+  "changes": [
+    {
+      "key": "PLATE_FEES",
+      "value": 9999999.0,
+      "area": 1,
+      "tier": null,
+      "car_type": null
+    }
+  ],
+  "current": [
+    {
+      "key": "PLATE_FEES",
+      "sub": [
+        1
+      ],
+      "current": 14000000,
+      "proposed": 9999999.0
+    }
+  ]
+}

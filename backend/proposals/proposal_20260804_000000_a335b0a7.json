@@ -1,0 +1,40 @@
+{
+  "timestamp": "2026-08-04",
+  "author": "tester",
+  "locale": "vi",
+  "user_agent": "curl/8.13.0",
+  "changes": [
+    {
+      "key": "PLATE_FEES",
+      "value": 5000000.0,
+      "area": 1,
+      "tier": null,
+      "car_type": null
+    },
+    {
+      "key": "PLATE_FEES",
+      "value": 150000.0,
+      "area": 2,
+      "tier": null,
+      "car_type": null
+    }
+  ],
+  "current": [
+    {
+      "key": "PLATE_FEES",
+      "sub": [
+        1
+      ],
+      "current": 14000000,
+      "proposed": 5000000.0
+    },
+    {
+      "key": "PLATE_FEES",
+      "sub": [
+        2
+      ],
+      "current": 140000,
+      "proposed": 150000.0
+    }
+  ]
+}

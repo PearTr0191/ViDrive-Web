@@ -1,0 +1,152 @@
+- generic [ref=f20e2]:
+  - generic [ref=f20e3]:
+    - scrollbar "Page scroll position" [ref=f20e6]
+    - link "Bỏ qua nội dung" [ref=f20e13] [cursor=pointer]:
+      - /url: "#main-content"
+    - banner [ref=f20e14]:
+      - generic [ref=f20e15]:
+        - link "ViDrive" [ref=f20e16] [cursor=pointer]:
+          - /url: /
+          - generic "ViDrive" [ref=f20e17]:
+            - img "ViDrive" [ref=f20e18]
+        - navigation [ref=f20e19]:
+          - link "Trang chủ" [ref=f20e20] [cursor=pointer]:
+            - /url: /
+          - link "Tính TCO" [ref=f20e21] [cursor=pointer]:
+            - /url: /tco
+          - link "So sánh" [ref=f20e23] [cursor=pointer]:
+            - /url: /compare
+          - link "Danh sách xe" [ref=f20e24] [cursor=pointer]:
+            - /url: /browse
+          - link "Lịch sử" [ref=f20e25] [cursor=pointer]:
+            - /url: /history
+          - link "Phương pháp" [ref=f20e26] [cursor=pointer]:
+            - /url: /methodology
+        - generic [ref=f20e27]:
+          - group "Ngôn ngữ" [ref=f20e28]:
+            - button "Tiếng Anh" [ref=f20e29] [cursor=pointer]: EN
+            - button "Tiếng Việt" [pressed] [ref=f20e30] [cursor=pointer]: VI
+          - button "Chuyển sang chế độ sáng" [ref=f20e31] [cursor=pointer]
+    - main [ref=f20e38]:
+      - navigation "Breadcrumb" [ref=f20e39]:
+        - list [ref=f20e40]:
+          - listitem [ref=f20e41]:
+            - link "Trang chủ" [ref=f20e42] [cursor=pointer]:
+              - /url: /
+          - listitem [ref=f20e43]:
+            - generic [ref=f20e44]: /
+            - generic [ref=f20e45]: Tính TCO
+      - generic [ref=f20e47]:
+        - generic [ref=f20e49]:
+          - generic [ref=f20e50]:
+            - generic [ref=f20e51]: Tìm xe
+            - combobox "Tìm xe" [ref=f20e53]
+          - generic [ref=f20e54]:
+            - generic [ref=f20e55]: Tỉnh/Thành phố
+            - combobox "Tỉnh/Thành phố" [ref=f20e56]:
+              - option "Hà Nội" [selected]
+              - option "Thành Phố Hồ Chí Minh"
+              - option "Đà Nẵng"
+              - option "Huế"
+              - option "Cần Thơ"
+              - option "Hải Phòng"
+              - option "An Giang"
+              - option "Bắc Ninh"
+              - option "Cà Mau"
+              - option "Cao Bằng"
+              - option "Đắk Lắk"
+              - option "Điện Biên"
+              - option "Đồng Nai"
+              - option "Đồng Tháp"
+              - option "Gia Lai"
+              - option "Hà Tĩnh"
+              - option "Hưng Yên"
+              - option "Khánh Hòa"
+              - option "Lai Châu"
+              - option "Lâm Đồng"
+              - option "Lạng Sơn"
+              - option "Lào Cai"
+              - option "Nghệ An"
+              - option "Ninh Bình"
+              - option "Phú Thọ"
+              - option "Quảng Ngãi"
+              - option "Quảng Ninh"
+              - option "Quảng Trị"
+              - option "Sơn La"
+              - option "Thái Nguyên"
+              - option "Thanh Hóa"
+              - option "Tây Ninh"
+              - option "Tuyên Quang"
+              - option "Vĩnh Long"
+          - generic [ref=f20e58]:
+            - generic [ref=f20e59]:
+              - text: "Số km/năm:"
+              - spinbutton "Số km/năm" [ref=f20e60] [cursor=pointer]: 15,000
+            - slider "Số km/năm" [ref=f20e61] [cursor=pointer]: "15000"
+          - generic [ref=f20e63]:
+            - generic [ref=f20e64]:
+              - text: "Số năm sở hữu:"
+              - spinbutton "Số năm sở hữu" [ref=f20e65] [cursor=pointer]: "5"
+            - slider "Số năm sở hữu" [ref=f20e66] [cursor=pointer]: "5"
+          - generic [ref=f20e67]:
+            - generic [ref=f20e68]:
+              - text: "% đường phố:"
+              - generic [ref=f20e69]: 30%
+            - slider "% đường phố" [ref=f20e70] [cursor=pointer]: "30"
+            - generic [ref=f20e71]:
+              - generic [ref=f20e72]: Chỉ cao tốc
+              - generic [ref=f20e73]: Chỉ đô thị
+          - generic [ref=f20e74]:
+            - 'checkbox "Chi phí cơ hội Lợi suất danh nghĩa hàng năm của số tiền bạn không bỏ ra (ví dụ: quỹ chỉ số ~6-8%/năm)" [ref=f20e75]'
+            - generic [ref=f20e76]:
+              - text: Chi phí cơ hội
+              - generic [ref=f20e77]: "Lợi suất danh nghĩa hàng năm của số tiền bạn không bỏ ra (ví dụ: quỹ chỉ số ~6-8%/năm)"
+          - generic [ref=f20e78]:
+            - checkbox "Giờ cao điểm Tinh chỉnh hiệu suất đô thị theo loại động cơ — phạt ICE (1,65 lên 2,0 lần), lợi EV/HEV nhờ phanh tái tạo" [ref=f20e79]
+            - generic [ref=f20e80]:
+              - text: Giờ cao điểm
+              - generic [ref=f20e81]: Tinh chỉnh hiệu suất đô thị theo loại động cơ — phạt ICE (1,65 lên 2,0 lần), lợi EV/HEV nhờ phanh tái tạo
+          - generic [ref=f20e82]:
+            - checkbox "Thêm bảo hiểm thân vỏ (tự nguyện) Khoảng 1,5% giá xe mỗi năm (mức PVI, Bảo Việt, Bảo Minh)" [ref=f20e83]
+            - generic [ref=f20e84]:
+              - text: Thêm bảo hiểm thân vỏ (tự nguyện)
+              - generic [ref=f20e85]: Khoảng 1,5% giá xe mỗi năm (mức PVI, Bảo Việt, Bảo Minh)
+          - button "Tính TCO" [disabled] [ref=f20e86] [cursor=pointer]
+          - link [ref=f20e87] [cursor=pointer]:
+            - /url: /methodology
+            - button "Chúng tôi đã tính như thế nào?" [ref=f20e88]
+        - generic [ref=f20e95]:
+          - generic [ref=f20e96]: Chọn xe ở trên và nhấn Tính TCO để xem phân tích chi phí.
+          - paragraph [ref=f20e97]:
+            - text: Không thấy xe cần tìm? Nhấn
+            - link "vào đây" [ref=f20e98] [cursor=pointer]:
+              - /url: /browse
+    - contentinfo [ref=f20e99]:
+      - generic [ref=f20e101]:
+        - generic [ref=f20e102]:
+          - generic "ViDrive" [ref=f20e103]:
+            - img "ViDrive" [ref=f20e104]
+          - paragraph [ref=f20e105]: Công cụ tính tổng chi phí sở hữu xe tại Việt Nam.
+          - paragraph [ref=f20e106]: © 2026 ViDrive. Ước tính — không phải lời khuyên tài chính.
+        - generic [ref=f20e107]:
+          - heading "Liên hệ" [level=3] [ref=f20e108]
+          - list [ref=f20e109]:
+            - listitem [ref=f20e110]:
+              - link "tranhoanglethanh@gmail.com" [ref=f20e114] [cursor=pointer]:
+                - /url: mailto:tranhoanglethanh@gmail.com
+            - listitem [ref=f20e115]:
+              - link "+84 866 828 946" [ref=f20e118] [cursor=pointer]:
+                - /url: tel:+84866828946
+        - generic [ref=f20e119]:
+          - heading "Kết nối" [level=3] [ref=f20e120]
+          - generic [ref=f20e121]:
+            - link "GitHub" [ref=f20e122] [cursor=pointer]:
+              - /url: https://github.com/PearTr0191
+            - link "Zalo" [ref=f20e125] [cursor=pointer]:
+              - /url: https://zalo.me/0866828946
+          - navigation "Pháp lý" [ref=f20e129]:
+            - link "Điều khoản sử dụng" [ref=f20e130] [cursor=pointer]:
+              - /url: /terms
+            - link "Chính sách bảo mật" [ref=f20e131] [cursor=pointer]:
+              - /url: /privacy
+  - button "Xem lời nhắn từ người phát triển" [ref=f20e132] [cursor=pointer]

@@ -1,0 +1,93 @@
+- generic [ref=f21e2]:
+  - generic [ref=f21e3]:
+    - scrollbar "Page scroll position" [ref=f21e6]
+    - link "Bỏ qua nội dung" [ref=f21e13] [cursor=pointer]:
+      - /url: "#main-content"
+    - banner [ref=f21e14]:
+      - generic [ref=f21e15]:
+        - link "ViDrive" [ref=f21e16] [cursor=pointer]:
+          - /url: /
+          - generic "ViDrive" [ref=f21e17]:
+            - img "ViDrive" [ref=f21e18]
+        - navigation [ref=f21e19]:
+          - link "Trang chủ" [ref=f21e20] [cursor=pointer]:
+            - /url: /
+          - link "Tính TCO" [ref=f21e21] [cursor=pointer]:
+            - /url: /tco
+          - link "So sánh" [ref=f21e22] [cursor=pointer]:
+            - /url: /compare
+          - link "Danh sách xe" [ref=f21e23] [cursor=pointer]:
+            - /url: /browse
+          - link "Lịch sử" [ref=f21e24] [cursor=pointer]:
+            - /url: /history
+          - link "Phương pháp" [ref=f21e26] [cursor=pointer]:
+            - /url: /methodology
+        - generic [ref=f21e27]:
+          - group "Ngôn ngữ" [ref=f21e28]:
+            - button "Tiếng Anh" [ref=f21e29] [cursor=pointer]: EN
+            - button "Tiếng Việt" [pressed] [ref=f21e30] [cursor=pointer]: VI
+          - button "Chuyển sang chế độ sáng" [ref=f21e31] [cursor=pointer]
+    - main [ref=f21e38]:
+      - navigation "Breadcrumb" [ref=f21e39]:
+        - list [ref=f21e40]:
+          - listitem [ref=f21e41]:
+            - link "Trang chủ" [ref=f21e42] [cursor=pointer]:
+              - /url: /
+          - listitem [ref=f21e43]:
+            - generic [ref=f21e44]: /
+            - generic [ref=f21e45]: Lịch sử
+      - generic [ref=f21e46]:
+        - generic [ref=f21e47]:
+          - textbox "Tìm kiếm lịch sử..." [ref=f21e50]
+          - button "Xuất tất cả CSV" [ref=f21e51] [cursor=pointer]
+        - generic [ref=f21e57]:
+          - generic [ref=f21e58]:
+            - generic [ref=f21e59]:
+              - heading "Toyota Vios 1.5G • Hanoi • 5 years" [level=3] [ref=f21e118]
+              - generic [ref=f21e61]:
+                - generic [ref=f21e62]: vừa xong
+                - generic [ref=f21e64]: "Loại: Đơn"
+            - 'button "Xóa: Toyota Vios 1.5G • Hanoi • 5 years" [ref=f21e119] [cursor=pointer]': Xóa
+          - table [ref=f21e67]:
+            - rowgroup [ref=f21e68]:
+              - row [ref=f21e69]:
+                - columnheader "Xe" [ref=f21e70]
+                - columnheader "Lăn bánh" [ref=f21e71]
+                - columnheader "TCO" [ref=f21e72]
+                - columnheader "Hàng tháng" [ref=f21e73]
+            - rowgroup [ref=f21e74]:
+              - row [ref=f21e120]:
+                - cell "Toyota Vios 1.5G" [ref=f21e121]
+                - cell "626.737.000 ₫" [ref=f21e77]
+                - cell "638.406.111 ₫" [ref=f21e78]
+                - cell "2.863.421 ₫" [ref=f21e79]
+        - button "Làm mới" [ref=f21e81] [cursor=pointer]
+    - contentinfo [ref=f21e82]:
+      - generic [ref=f21e84]:
+        - generic [ref=f21e85]:
+          - generic "ViDrive" [ref=f21e86]:
+            - img "ViDrive" [ref=f21e87]
+          - paragraph [ref=f21e88]: Công cụ tính tổng chi phí sở hữu xe tại Việt Nam.
+          - paragraph [ref=f21e89]: © 2026 ViDrive. Ước tính — không phải lời khuyên tài chính.
+        - generic [ref=f21e90]:
+          - heading "Liên hệ" [level=3] [ref=f21e91]
+          - list [ref=f21e92]:
+            - listitem [ref=f21e93]:
+              - link "tranhoanglethanh@gmail.com" [ref=f21e97] [cursor=pointer]:
+                - /url: mailto:tranhoanglethanh@gmail.com
+            - listitem [ref=f21e98]:
+              - link "+84 866 828 946" [ref=f21e101] [cursor=pointer]:
+                - /url: tel:+84866828946
+        - generic [ref=f21e102]:
+          - heading "Kết nối" [level=3] [ref=f21e103]
+          - generic [ref=f21e104]:
+            - link "GitHub" [ref=f21e105] [cursor=pointer]:
+              - /url: https://github.com/PearTr0191
+            - link "Zalo" [ref=f21e108] [cursor=pointer]:
+              - /url: https://zalo.me/0866828946
+          - navigation "Pháp lý" [ref=f21e112]:
+            - link "Điều khoản sử dụng" [ref=f21e113] [cursor=pointer]:
+              - /url: /terms
+            - link "Chính sách bảo mật" [ref=f21e114] [cursor=pointer]:
+              - /url: /privacy
+  - button "Xem lời nhắn từ người phát triển" [ref=f21e115] [cursor=pointer]

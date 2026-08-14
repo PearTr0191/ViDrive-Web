@@ -1,0 +1,56 @@
+{
+  "tiebreaker_id": "parking-tiebreaker-1",
+  "date": "2026-08-07",
+  "reconciled": {
+    "area1_metro": {
+      "final_value_vnd": 1500000,
+      "rationale": "R1, R2, R3 all converge on Hanoi/HCMC mainstream 1.25-1.85M range. Median of 3 recommendations (1.5M, 1.5M, 1.7M) = 1.5M. R3's 1.7M was pulled up by including luxury outliers (Léman 2.7M, The Marq); trimming to mainstream yields 1.5M consensus.",
+      "citations": [
+        "Vinhomes Metropolis / Goldmark City listings 1.75M VND/month (Hanoi)",
+        "Seasons Avenue 1.8M, Mulberry Lane 1.85M (Hanoi)",
+        "Masteri Thao Dien 1.4M, Vinhomes Central Park 1.7M, Golden River 2.2M (HCMC)",
+        "Vinhomes Grand Park 1.25M (HCMC District 9)",
+        "Sunshine City / Sunshine City Ciputra 1.5-1.9M (Hanoi)"
+      ]
+    },
+    "area1_other": {
+      "final_value_vnd": 1000000,
+      "rationale": "Median of R1=1.0M, R2=1.0M, R3=1.1M is 1.0M. Da Nang Monarchy luxury 1.4-1.6M anchors upper bound; Hai Phong SHP Plaza 1.0-1.5M and Can Tho tax-reference 1.2M support 1.0-1.2M; Hue tiered (300K/600K/150K per QĐ 30/2017) pulls average down. Compromise 1.0M represents typical apartment in this tier.",
+      "citations": [
+        "Monarchy Da Nang luxury 1.4-1.6M VND/month",
+        "SHP Plaza Hai Phong 1.0-1.5M VND/month",
+        "Can Tho tax-reference 1.2M VND/month",
+        "Hue QĐ 30/2017 chung cư thu nhập thấp 300K, smart 600K, general 150K",
+        "Hai Phong The Minato Residences 1.6M VND/month"
+      ]
+    },
+    "area2_provincial": {
+      "final_value_vnd": 800000,
+      "rationale": "TIEBREAKER REQUIRED: R1=0.8M, R2=1.0M, R3=0.8M. Divergence 25% exceeds 15% threshold. 2/3 vote (R1, R3) wins at 0.8M. R2's higher value (1.0M) reflects Vinhomes-branded provincial projects (Vinhomes Ocean Park Hưng Yên 1.25M, Ecopark 1.0M); these are atypical for 'typical provincial chung cư resident' which is what ViDrive's 4-tier model targets. Splitting into area2_vinhomes/area2_standard exceeds the 4-tier granularity. Pick 0.8M.",
+      "citations": [
+        "Đồng Nai / Biên Hòa private apartment 600-700K VND/month",
+        "Bình Dương / Thuận An 550K-1.0M VND/month",
+        "Đức Khải provincial developer 800K-1.1M VND/month",
+        "Bắc Ninh standard chung cư 600-900K VND/month",
+        "Long An / Tây Ninh standard 500-800K VND/month"
+      ]
+    },
+    "area3_rural": {
+      "final_value_vnd": 500000,
+      "rationale": "All three researchers unanimous at 500K VND/month. Anchored by QĐ 05/2018 Quảng Trị cap (~600K), Tuyên Quang public 600K, OneHousing survey of huyện ngoại thành 400-800K.",
+      "citations": [
+        "QĐ 05/2018 Quảng Trị rural public parking cap ~600K VND/month",
+        "Tuyên Quang public parking reference ~600K VND/month",
+        "OneHousing rural / huyện ngoại thành survey 400-800K VND/month",
+        "Rural operator reports 400-700K VND/month"
+      ]
+    }
+  },
+  "delta_from_current": {
+    "area1_metro": "2,000,000 -> 1,500,000 (-25%)",
+    "area1_other": "1,500,000 -> 1,000,000 (-33%)",
+    "area2_provincial": "400,000 -> 800,000 (+100%)",
+    "area3_rural": "100,000 -> 500,000 (+400%)"
+  },
+  "notes": "The +100% area2 jump and +400% area3 jump are defensible. ViDrive's prior area2_provincial=400K was materially too low — even a rural quán cóc operator in Bình Dương or Bắc Ninh charges 500-700K for an apartment spot, and BĐS Đức Khải lists 800K-1.1M. Prior area3_rural=100K is implausible — at that price you could not even rent a basic motorcycle spot in a huyện-level town (QĐ 05/2018 Quảng Trị alone caps public parking at ~600K). The +400% jump reflects correcting a near-placeholder value, not a real price change. Conversely, area1_metro and area1_other were set too high (perhaps reflecting luxury-only data), and trimming them -25%/-33% brings the values into the mainstream-chung-cư band that applies to ~80% of users. Net direction: align ViDrive's parking assumptions with the realistic mainstream, not the luxury ceiling and not the rural floor."
+}
