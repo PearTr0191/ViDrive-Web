@@ -1,4 +1,4 @@
-import { motion, useScroll, useTransform, useMotionValue, useSpring, animate } from 'framer-motion'
+import { motion, useScroll, useTransform, useMotionValue, useSpring } from 'framer-motion'
 import { useEffect, useRef } from 'react'
 
 // Pseudo-3D layered car showcase for the Landing hero.
@@ -47,14 +47,20 @@ export default function Hero3DCar({ className = '' }: Hero3DCarProps) {
 
   useEffect(() => {
     if (reduced.current) return
-    // Baseline idle rotation: ~6 deg/sec ≈ one revolution every 60s.
-    const controls = animate(spin, 100000, {
-      type: 'linear',
-      duration: 3600, // effectively continuous
-      repeat: Infinity,
-      ease: 'linear',
-    })
-    return () => controls.stop()
+
+    let rafId = 0
+    let lastTs = 0
+
+    const tick = (ts: number) => {
+      if (!lastTs) lastTs = ts
+      const delta = ts - lastTs
+      lastTs = ts
+      spin.set((spin.get() + delta * 0.01) % 360000)
+      rafId = window.requestAnimationFrame(tick)
+    }
+
+    rafId = window.requestAnimationFrame(tick)
+    return () => window.cancelAnimationFrame(rafId)
   }, [spin, reduced])
 
   return (

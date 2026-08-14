@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useSearchParams, Link } from 'react-router-dom'
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianGrid, LineChart, Line, Legend } from 'recharts'
 import { api, historyApi, formatVND, toTitleCase, configApi } from '../lib'
-import type { CarInfo, TcoResponse, YearlyBreakdownEntry, TcoResult } from '../lib'
+import type { CarInfo, TcoResponse, YearlyBreakdownEntry } from '../lib'
 import AccentButton from '../components/AccentButton'
 import GlassCard from '../components/ui/GlassCard'
 import CostBars from '../components/CostBars'
@@ -128,14 +128,14 @@ export default function TcoCalculator() {
     const n = v ? Number(v) : NaN
     return Number.isFinite(n) ? n : DEFAULTS.cityRatio
   })
-  const [showOppCost, setShowOppCost] = useState(DEFAULTS.showOppCost)
+  const [showOppCost, setShowOppCost] = useState<boolean>(DEFAULTS.showOppCost)
   const [rushHour, setRushHour] = useState(searchParams.get('rush') === '1')
   const [includeInsurance, setIncludeInsurance] = useState(searchParams.get('ins') === '1')
   const [linkCopied, setLinkCopied] = useState(false)
-  const [showLoan, setShowLoan] = useState(DEFAULTS.showLoan)
-  const [loanDownPct, setLoanDownPct] = useState(DEFAULTS.loanDownPct)
-  const [loanRate, setLoanRate] = useState(DEFAULTS.loanRate)
-  const [loanTerm, setLoanTerm] = useState(DEFAULTS.loanTerm)
+  const [showLoan, setShowLoan] = useState<boolean>(DEFAULTS.showLoan)
+  const [loanDownPct, setLoanDownPct] = useState<number>(DEFAULTS.loanDownPct)
+  const [loanRate, setLoanRate] = useState<number>(DEFAULTS.loanRate)
+  const [loanTerm, setLoanTerm] = useState<number>(DEFAULTS.loanTerm)
   const [loanResult, setLoanResult] = useState<any>(null)
   const queryClient = useQueryClient()
 
@@ -966,7 +966,7 @@ export default function TcoCalculator() {
                           return v >= 1e9 ? `${(v / 1e9).toFixed(1)}B` : `${Math.round(v / 1e6)}M`
                         }} />
                         <Tooltip
-                          formatter={(value: any, name: string) => [formatVND(value as number), name]}
+                          formatter={(value, name) => [formatVND(Number(value ?? 0)), String(name ?? '')]}
                           contentStyle={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid rgba(var(--accent-rgb), 0.2)', borderRadius: '8px', color: 'var(--text-primary)' }}
                         />
                         <Legend wrapperStyle={{ color: 'var(--text-secondary)', fontSize: 12, paddingTop: 8 }} />
@@ -1352,7 +1352,6 @@ export default function TcoCalculator() {
                     labels={{
                       onRoad: t('tco.tcoVsOnRoad'),
                       fiveYearTco: t('tco.netTco'),
-                      deltaLabel: t('tco.ownershipDelta'),
                     }}
                   />
                   <SocialProofLine localeKey="tco" skeleton carId={result.car_id} onRoad={result.result.on_road} tco={result.result.tco} />

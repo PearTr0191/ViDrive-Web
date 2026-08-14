@@ -18,7 +18,6 @@ export default function CarSearchSelect({
   onChange,
   cars,
   searchPlaceholder,
-  chooseLabel,
 }: CarSearchSelectProps) {
   const { t } = useI18n()
   const [searchTerm, setSearchTerm] = useState('')

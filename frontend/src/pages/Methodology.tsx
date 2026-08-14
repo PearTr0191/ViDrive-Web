@@ -3,7 +3,6 @@ import { motion, AnimatePresence, useReducedMotion } from 'framer-motion'
 import { useQuery } from '@tanstack/react-query'
 import GlassCard from '../components/ui/GlassCard'
 import AccentButton from '../components/AccentButton'
-import Breadcrumbs from '../components/Breadcrumbs'
 import ErrorBoundary from '../components/ErrorBoundary'
 import { useI18n } from '../lib/i18n'
 import { configApi, formatVND, type AssumptionsResponse, type AssumptionItem } from '../lib/api'
@@ -179,11 +178,6 @@ function AssumptionsTable({ t, editorMode, changes, onValueChange, onRevert }: A
   }
 
   // Count editable items per group for the submit bar logic
-  const totalEditable = data.groups.reduce(
-    (sum, g) => sum + g.items.filter((it) => it.editable && (it.type === 'int' || it.type === 'float')).length,
-    0,
-  )
-
   return (
     <GlassCard
       className="p-6 transition-all duration-300"
@@ -202,8 +196,6 @@ function AssumptionsTable({ t, editorMode, changes, onValueChange, onRevert }: A
               const isEditable = item.editable && (item.type === 'int' || item.type === 'float')
               const changeKey = buildChangeKey(item, idx)
               const hasChange = editorMode && changeKey in changes
-              const proposedVal = hasChange ? changes[changeKey].value : null
-
               return (
                 <AssumpRow
                   key={changeKey}
@@ -214,7 +206,7 @@ function AssumptionsTable({ t, editorMode, changes, onValueChange, onRevert }: A
                   editorMode={editorMode}
                   isEditable={isEditable}
                   hasChange={hasChange}
-                  proposedValue={proposedVal}
+                  proposedValue={hasChange ? changes[changeKey].value : null}
                   onValueChange={onValueChange}
                   onRevert={onRevert}
                 />
@@ -247,7 +239,6 @@ function AssumpRow({
   editorMode,
   isEditable,
   hasChange,
-  proposedValue,
   onValueChange,
   onRevert,
 }: AssumpRowProps) {
@@ -309,7 +300,7 @@ function AssumpRow({
             {hasChange && (
               <motion.button
                 type="button"
-                onClick={() => onRevert(changeKey)}
+                onClick={() => onRevert(item.key)}
                 className="p-0.5 rounded hover:bg-[var(--bg-elevated)] transition-colors"
                 aria-label={t('common.cancel')}
                 whileHover={{ scale: 1.1 }}
@@ -491,9 +482,9 @@ export default function Methodology() {
                 <>
                   <motion.div
                     key="export-csv-btn"
-                    initial={prefersReduced ? false : { opacity: 0, x: -10, width: 0 }}
-                    animate={prefersReduced ? false : { opacity: 1, x: 0, width: 'auto' }}
-                    exit={prefersReduced ? false : { opacity: 0, x: -10, width: 0 }}
+                    initial={prefersReduced ? undefined : { opacity: 0, x: -10, width: 0 }}
+                    animate={prefersReduced ? undefined : { opacity: 1, x: 0, width: 'auto' }}
+                    exit={prefersReduced ? undefined : { opacity: 0, x: -10, width: 0 }}
                   >
                     <AccentButton
                       size="sm"
@@ -505,9 +496,9 @@ export default function Methodology() {
                   </motion.div>
                   <motion.div
                     key="suggest-changes-btn"
-                    initial={prefersReduced ? false : { opacity: 0, x: -10, width: 0 }}
-                    animate={prefersReduced ? false : { opacity: 1, x: 0, width: 'auto' }}
-                    exit={prefersReduced ? false : { opacity: 0, x: -10, width: 0 }}
+                    initial={prefersReduced ? undefined : { opacity: 0, x: -10, width: 0 }}
+                    animate={prefersReduced ? undefined : { opacity: 1, x: 0, width: 'auto' }}
+                    exit={prefersReduced ? undefined : { opacity: 0, x: -10, width: 0 }}
                   >
                     <AccentButton
                       size="sm"

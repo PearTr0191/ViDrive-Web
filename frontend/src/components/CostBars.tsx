@@ -15,6 +15,7 @@ interface CostBarsProps {
   labels?: {
     onRoad?: string
     fiveYearTco?: string
+    deltaLabel?: string
   }
   /** Optional className on the wrapper. */
   className?: string

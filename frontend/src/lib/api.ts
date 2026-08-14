@@ -370,6 +370,7 @@ export const api = {
     km: number
     years: number
     city_ratio?: number
+    rush_hour?: boolean
   }): Promise<{ car_id: string; years: number; yearly: YearlyBreakdownEntry[] }> {
     const res = await safeFetch(`${API_BASE}/api/tco/yearly-breakdown`, {
       method: 'POST',

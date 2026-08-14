@@ -234,9 +234,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       {/* Main content with page transitions */}
       <motion.main
         key={location.pathname}
-        initial={prefersReduced ? false : { opacity: 0, y: 12 }}
-        animate={prefersReduced ? false : { opacity: 1, y: 0 }}
-        exit={prefersReduced ? false : { opacity: 0, y: -8 }}
+        initial={prefersReduced ? undefined : { opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={prefersReduced ? undefined : { opacity: 0, y: -8 }}
         transition={prefersReduced ? { duration: 0 } : { duration: 0.35, ease: [0.33, 1, 0.68, 1] }}
         className="container mx-auto px-6 py-12 relative z-10"
         id="main-content"

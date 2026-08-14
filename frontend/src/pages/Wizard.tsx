@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { useNavigate } from 'react-router-dom'
-import { formatVND } from '../lib'
 import type { CarInfo } from '../lib'
 import AccentButton from '../components/AccentButton'
 import GlassCard from '../components/ui/GlassCard'
@@ -132,9 +131,6 @@ export default function Wizard() {
     [step],
   )
 
-  const sliderStyle = (val: number, min: number, max: number) => ({
-    '--val': `${((val - min) / (max - min)) * 100}%`,
-  }) as React.CSSProperties
 
   const firstStepError = Object.values(fieldErrors)[0] || ''
 

@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { motion, AnimatePresence, useReducedMotion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import { useSearchParams, Link } from 'react-router-dom'
 import { api, historyApi, configApi, formatVND, toTitleCase } from '../lib'
 import type { TcoResult, CarInfo, YearlyBreakdownEntry } from '../lib'
@@ -8,7 +8,6 @@ import AccentButton from '../components/AccentButton'
 import GlassCard from '../components/ui/GlassCard'
 import CarMedia from '../components/CarMedia'
 import SocialProofLine from '../components/SocialProofLine'
-import { CheckeredFlag } from '../components/AutomotivePatterns'
 import CarSearchSelect from '../components/CarSearchSelect'
 import PressToEditNumber from '../components/PressToEditNumber'
 import { useI18n } from '../lib/i18n'
@@ -43,7 +42,6 @@ function compareInputsEqual(a: CompareInputSignature, b: CompareInputSignature):
 
 export default function Compare() {
   const { t, locale } = useI18n()
-  const prefersReduced = useReducedMotion()
   const [searchParams, setSearchParams] = useSearchParams()
   const phase1 = import.meta.env.VITE_COMPETITIVE_PHASE === '1'
 
@@ -344,7 +342,7 @@ export default function Compare() {
 
   const depreciationRows = results ? [
     { key: 'depreciation', label: t('compare.depreciation'), get: (r: TcoResult) => r.depreciation, isNegative: true },
-  ] : []
+  ] : [] as Array<{ key: string; label: string; get: (r: TcoResult) => number; isNegative?: boolean }>
 
   const acquisitionSubtotal = (r: TcoResult) => r.on_road
   const operationsSubtotal = (r: TcoResult) =>
@@ -665,9 +663,10 @@ export default function Compare() {
                                       {results.map((r, i) => {
                                         const val = item.get(r)
                                         const isMLResale = section.key === 'depreciation' && isML(r) && item.key === 'depreciation'
+                                        const negative = 'isNegative' in item && item.isNegative
                                         return (
                                           <td key={i} className="text-right py-2 font-mono align-top">
-                                            <div className={item.isNegative ? 'text-danger' : 'text-[var(--text-primary)]'}>
+                                            <div className={negative ? 'text-danger' : 'text-[var(--text-primary)]'}>
                                               {formatVND(val)}
                                             </div>
                                             {isMLResale && (
@@ -701,11 +700,14 @@ export default function Compare() {
                                 <div key={item.key} className="flex flex-col py-2 border-b border-[var(--border-subtle)] last:border-0">
                                   <span className="text-xs text-[var(--text-secondary)]">{item.label}</span>
                                   <div className="flex justify-between gap-2 mt-1">
-                                    {results.map((r, i) => (
-                                      <span key={i} className={`text-sm font-mono ${i === bestIdx ? 'accent-text font-semibold' : item.isNegative ? 'text-danger' : 'text-[var(--text-primary)]'}`}>
-                                        {formatVND(item.get(r))}
-                                      </span>
-                                    ))}
+                                    {results.map((r, i) => {
+                                      const negative = 'isNegative' in item && item.isNegative
+                                      return (
+                                        <span key={i} className={`text-sm font-mono ${i === bestIdx ? 'accent-text font-semibold' : negative ? 'text-danger' : 'text-[var(--text-primary)]'}`}>
+                                          {formatVND(item.get(r))}
+                                        </span>
+                                      )
+                                    })}
                                   </div>
                                 </div>
                               ))}
@@ -722,9 +724,9 @@ export default function Compare() {
                   <div className="flex justify-between items-center">
                     <span className="text-accent font-semibold text-sm">{t('tco.netTco')}</span>
                     <div className="flex gap-3">
-                      {results.map((r, i) => (
+                      {results.map((resultItem, i) => (
                         <span key={i} className={`font-mono font-bold ${i === bestIdx ? 'accent-text text-lg' : 'text-[var(--text-primary)]'}`}>
-                          {formatVND(r.tco)}
+                          {formatVND(resultItem.tco)}
                         </span>
                       ))}
                     </div>
@@ -743,7 +745,7 @@ export default function Compare() {
                       className="px-3 py-2 bg-[rgba(var(--bg-base-rgb),0.5)] border border-[var(--border-default)] rounded-xl text-sm text-[var(--text-primary)] focus:outline-none focus:border-accent/50 focus:ring-2 focus:ring-accent/20 transition-colors"
                       aria-label={t('compare.selectCar')}
                     >
-                      {results.map((r, i) => (
+                      {results.map((_r, i) => (
                         <option key={i} value={String(i)}>
                           {i === bestIdx ? `★ ${carName(displayedCarIds[i])}` : carName(displayedCarIds[i])}
                         </option>

@@ -12,7 +12,6 @@ interface NeonWireframeCarProps {
 }
 
 const NEON = '#00FFBD'
-const NEON_DIM = 'rgba(0,255,189,0.35)'
 const NEON_FAINT = 'rgba(0,255,189,0.08)'
 const DARK_BG = '#0A0E14'
 const LIGHT_BG = '#F8FAFC'
@@ -383,7 +382,7 @@ const SILHOUETTES: Record<SegmentKey, (props: { powertrain: Powertrain; bgColor:
       {(powertrain === 'EV' || powertrain === 'HEV') && <BrakeIndicator cx={660} cy={248} bgColor={bgColor} />}
     </g>
   ),
-  ev: ({ powertrain, bgColor }) => (
+  ev: ({ bgColor }) => (
     <g>
       <EvBody />
       <BatteryIndicator />

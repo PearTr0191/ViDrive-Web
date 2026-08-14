@@ -2,7 +2,6 @@ import { Link, useLocation } from 'react-router-dom'
 import { useI18n } from '../lib/i18n'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '../lib'
-import type { CarInfo } from '../lib'
 
 /** Maps URL path segments to breadcrumb translation keys. */
 const segmentMap: Record<string, string> = {

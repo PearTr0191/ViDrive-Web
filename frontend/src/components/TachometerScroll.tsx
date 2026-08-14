@@ -30,7 +30,7 @@ const SWEEP = 270
 // CSS transition for smooth needle/arc following during normal scroll.
 // Uses a spring-like easing for the "ebb and flow" feel without JS-level
 // spring lag that caused jolts on fast drag release.
-const SPRING_EASING = 'cubic-bezier(0.34, 1.56, 0.64, 1)'
+const SPRING_EASING = [0.34, 1.56, 0.64, 1] as const
 const TRANSITION_DURATION = 0.12
 
 export default function TachometerScroll({ className = '', radius = 16.1 }: TachometerScrollProps) {
@@ -41,7 +41,6 @@ export default function TachometerScroll({ className = '', radius = 16.1 }: Tach
   const [progress, setProgress] = useState(initialProgress)
   const [isDragging, setIsDragging] = useState(false)
   const [isMouseDown, setIsMouseDown] = useState(false)
-  const [isFocused, setIsFocused] = useState(false)
   const isDraggingRef = useRef(false)
   const dragStartY = useRef(0)
   const scrollStartY = useRef(0)
@@ -211,8 +210,6 @@ export default function TachometerScroll({ className = '', radius = 16.1 }: Tach
         aria-valuemin={0}
         aria-valuemax={100}
         aria-valuetext={`${Math.round(progress * 100)}% scrolled`}
-        onFocus={() => setIsFocused(true)}
-        onBlur={() => setIsFocused(false)}
         onKeyDown={handleKeyDown}
       >
         <div
