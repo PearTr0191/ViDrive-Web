@@ -97,6 +97,10 @@ app = FastAPI(
     version=APP_VERSION,
 )
 
+origins = [
+    "https://vidrive-web.pages.dev",
+]
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
