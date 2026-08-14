@@ -39,8 +39,8 @@ def encode_features(df: pd.DataFrame) -> pd.DataFrame:
 
 def main():
     df = load_data()
-    y = df["resale_pct"].values
-    X = encode_features(df)
+    y = df["resale_pct"].to_numpy(dtype=float)
+    X = encode_features(df).to_numpy(dtype=float)
 
     X_train, X_test, y_train, y_test = train_test_split(
         X, y, test_size=0.15, random_state=42
