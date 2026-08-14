@@ -97,6 +97,10 @@ app = FastAPI(
     version=APP_VERSION,
 )
 
+@app.get("/")
+def read_root():
+    return {"status": "ok", "message": "ViDrive backend is running"}
+
 origins = [
     "https://vidrive-web.pages.dev",
 ]
