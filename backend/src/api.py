@@ -101,10 +101,6 @@ app = FastAPI(
 def read_root():
     return {"status": "ok", "message": "ViDrive backend is running"}
 
-origins = [
-    "https://vidrive-web.pages.dev",
-]
-
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,

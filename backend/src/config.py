@@ -291,10 +291,10 @@ APP_VERSION = "1.0.0"
 
 # --- CORS ---
 # Comma-separated list of allowed origins (scheme://host[:port]).
-# Defaults to the Vite dev server. In production set ALLOWED_ORIGINS explicitly.
+# Defaults to the Vite dev server and production URLs. Override with ALLOWED_ORIGINS env var.
 ALLOWED_ORIGINS: list[str] = [
     origin.strip()
-    for origin in _os.environ.get("ALLOWED_ORIGINS", "http://localhost:5173").split(",")
+    for origin in _os.environ.get("ALLOWED_ORIGINS", "http://localhost:5173,https://vidrive-web.pages.dev", ).split(",")
     if origin.strip()
 ]
 
