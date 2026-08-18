@@ -10,4 +10,4 @@ Disallow: /tco?
 Disallow: /compare?
 Disallow: /*?*
 
-Sitemap: https://vidrive.app/sitemap.xml
+Sitemap: https://vidrive-web.pages.dev/sitemap.xml
