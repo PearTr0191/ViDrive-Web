@@ -1,13 +1,9 @@
 User-agent: *
 Allow: /
 
-# User-specific pages — not indexable
+# User-specific and duplicate/thin surfaces — keep parameterized and private
+# routes out of the index. `/*` is a wildcard, `?` is a literal so we use `*?*`.
 Disallow: /history
-
-# Duplicate / thin surfaces
-Disallow: /?car=*
-Disallow: /tco?
-Disallow: /compare?
 Disallow: /*?*
 
 Sitemap: https://vidrive-web.pages.dev/sitemap.xml

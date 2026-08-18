@@ -8,6 +8,11 @@ export default defineConfig({
     react(),
     sitemap({
       hostname: 'https://vidrive-web.pages.dev',
+      // Generate sitemap.xml, but NOT robots.txt — we ship a hand-written
+      // public/robots.txt with route-specific disallows (/history, /*?*).
+      // Leaving the plugin's default (generateRobotsTxt: true) overwrites that
+      // file with a minimal "User-agent: *\nAllow: /" at build time.
+      generateRobotsTxt: false,
       dynamicRoutes: [
         '/',
         '/tco',
