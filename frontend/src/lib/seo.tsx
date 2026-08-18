@@ -4,7 +4,7 @@ import { useLocation } from 'react-router-dom'
 import { useI18n } from './i18n'
 
 const SITE_NAME = 'ViDrive'
-const SITE_URL = 'https://vidrive.app'
+const SITE_URL = 'https://vidrive-web.pages.dev'
 const DEFAULT_DESCRIPTION =
   'Vietnam\'s first-of-its-kind car total cost of ownership (TCO) calculator. ' +
   'Compare EVs, hybrids, and ICE vehicles across Vietnamese cities. ' +

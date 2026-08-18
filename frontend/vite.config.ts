@@ -7,7 +7,7 @@ export default defineConfig({
   plugins: [
     react(),
     sitemap({
-      hostname: 'https://vidrive.app',
+      hostname: 'https://vidrive-web.pages.dev',
       dynamicRoutes: [
         '/',
         '/tco',
