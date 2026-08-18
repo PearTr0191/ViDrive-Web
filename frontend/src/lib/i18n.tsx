@@ -36,10 +36,10 @@ const translations: Record<Locale, Record<string, string>> = {
 
     // Landing
     'landing.eyebrow': "Vietnam's first-of-its-kind car cost calculator",
-    'landing.heroTitle1': 'Know every dong',
-    'landing.heroTitle2': 'before you drive',
+    'landing.heroTitle1': 'Every dong accounted for',
+    'landing.heroTitle2': 'so you can be at the wheel',
     'landing.ctaHeading': 'Ready to crunch some numbers?',
-    'landing.heroSubtitle': "Vietnam's first-of-its-kind total cost of ownership calculator. Compare cars, estimate depreciation, and make confident, data-informed decisions.",
+    'landing.heroSubtitle': "Vietnam's first-of-its-kind independent total cost of ownership calculator. Compare cars, estimate depreciation, and make confident, data-informed decisions.",
     'landing.ctaCalculate': 'Calculate your costs',
     'landing.ctaCompare': 'Compare models',
     'landing.ctaCompareDesc': 'Compare {count}+ vehicles across EV, ICE, and HEV. See fuel, maintenance, depreciation, and financing in one view.',
@@ -835,7 +835,7 @@ const translations: Record<Locale, Record<string, string>> = {
     'landing.heroTitle1': 'Chắc tới từng đồng',
     'landing.heroTitle2': 'trước khi cầm lái',
     'landing.ctaHeading': 'Bạn đã sẵn sàng đầu tư thông minh?',
-    'landing.heroSubtitle': 'Công cụ tính tổng chi phí sở hữu đầu tiên tại Việt Nam. So sánh xe, ước tính khấu hao và đưa ra quyết định mua sắm tự tin.',
+    'landing.heroSubtitle': 'Công cụ tính tổng chi phí sở hữu ô tô trung lập đầu tiên tại Việt Nam. So sánh xe, ước tính khấu hao và đưa ra quyết định mua sắm tự tin với kết quả tức thì.',
     'landing.ctaCalculate': 'Tính chi phí',
     'landing.ctaCompare': 'So sánh xe',
     'landing.ctaCompareDesc': 'So sánh {count}+ mẫu xe từ EV, ICE, HEV. Xem ngay nhiên liệu, bảo dưỡng, khấu hao và tài chính trong một giao diện.',

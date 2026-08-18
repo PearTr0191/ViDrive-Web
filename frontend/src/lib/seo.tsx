@@ -6,9 +6,9 @@ import { useI18n } from './i18n'
 const SITE_NAME = 'ViDrive'
 const SITE_URL = 'https://vidrive-web.pages.dev'
 const DEFAULT_DESCRIPTION =
-  'Vietnam\'s first-of-its-kind car total cost of ownership (TCO) calculator. ' +
-  'Compare EVs, hybrids, and ICE vehicles across Vietnamese cities. ' +
-  'Estimate depreciation, fuel, maintenance, registration, and financing.'
+  'Tính chi phí sở hữu ô tô (TCO) tại Việt Nam: so sánh xe điện, hybrid và xăng, ' +
+  'định giá xe cũ, ước tính lăn bánh, khấu hao, bảo dưỡng và tài chính. ' +
+  'Minh bạch, tức thì. EV vs ICE vs hybrid TCO & used-car valuation calculator.'
 
 export interface SeoMetaInput {
   title?: string
