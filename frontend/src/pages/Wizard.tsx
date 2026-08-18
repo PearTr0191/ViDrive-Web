@@ -2,18 +2,20 @@ import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { useNavigate } from 'react-router-dom'
 import type { CarInfo } from '../lib'
+import { useI18n } from '../lib/i18n'
+import { useSeoMetaSafe } from '../lib/seo'
 import AccentButton from '../components/AccentButton'
 import GlassCard from '../components/ui/GlassCard'
-import { useI18n } from '../lib/i18n'
 import { useKeyboardShortcut } from '../hooks/useKeyboardShortcut'
 
 const SEGMENTS = [
-  'B-Series', 'C-Series', 'D-Series', 'B-SUV', 'C-SUV', 'D-SUV',
+  'B-Sedan', 'C-Sedan', 'D-Sedan', 'B-SUV', 'C-SUV', 'D-SUV',
   'MPV', 'Pickup', 'A-Hatch', 'B-Hatch', 'A-SUV', 'EV-Mini',
 ]
 
 export default function Wizard() {
   const { t, locale } = useI18n()
+  useSeoMetaSafe({ title: `ViDrive - ${t('nav.wizard')}`, description: t('page.wizardDescription') })
   const navigate = useNavigate()
   const [step, setStep] = useState(0)
   const [formData, setFormData] = useState({
@@ -24,7 +26,7 @@ export default function Wizard() {
     consumption: '6.0',
     annual_maintenance: '8000000',
     seats: '5',
-    segment_type: 'C-Series',
+    segment_type: 'C-Sedan',
     depreciation_rate: '',
   })
   const [showNotification, setShowNotification] = useState(false)
@@ -100,10 +102,10 @@ export default function Wizard() {
     }
 
     setShowNotification(true)
-    // Auto-dismiss notification then navigate back to browse
+    // Auto-dismiss notification then navigate back to car listing
     setTimeout(() => {
       setShowNotification(false)
-      navigate('/browse')
+      navigate('/car')
     }, 1200)
   }
 
@@ -136,6 +138,7 @@ export default function Wizard() {
 
   return (
     <div className="space-y-8">
+      <h1 className="sr-only">{t('wizard.title')}</h1>
       {showNotification && (
         <motion.div
           className="fixed top-20 left-1/2 -translate-x-1/2 px-4 py-2 rounded-lg bg-success/10 border border-success/30 text-success text-sm font-medium z-50"

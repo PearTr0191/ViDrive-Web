@@ -80,14 +80,19 @@ export interface TcoResult {
   resale_spread?: number
   resale_std?: number
   resale_note_key?: string
+  resale_market_value?: number | null
+  resale_guarantee_value?: number | null
+  resale_guarantee_floor?: number | null
+  warnings?: string[] | null
   depreciation: number
   opp_cost: number
   liquidity: string
   tco: number
   true_financial_impact: number
   monthly: number
-  confidence_low?: number
-  confidence_high?: number
+  confidence_low?: number | null
+  confidence_high?: number | null
+  ml_max_year?: number | null
 }
 
 export interface TcoResponse {
@@ -113,9 +118,18 @@ export interface YearlyBreakdownEntry {
   inspection: number
   parking_toll: number
   operating_cumulative: number
-  resale: number
+    resale: number
+  resale_guarantee_value: number | null
   depreciation: number
   cumulative_tco: number
+}
+
+export interface YearlyBreakdownResponse {
+  car_id: string
+  years: number
+  yearly: YearlyBreakdownEntry[]
+  warnings?: string[] | null
+  ml_max_year?: number | null
 }
 
 export interface LoanResult {
@@ -213,6 +227,7 @@ export const api = {
 
   async calculateTco(req: {
     car_id: string
+    car?: CarInfo
     city: string
     km: number
     years: number
@@ -233,6 +248,7 @@ export const api = {
 
   async compareTco(req: {
     car_ids: string[]
+    custom_cars?: CarInfo[]
     city: string
     km: number
     years: number
@@ -349,6 +365,7 @@ export const api = {
 
   async getBreakdown(req: {
     car_id: string
+    car?: CarInfo
     city: string
     km: number
     years: number
@@ -366,12 +383,13 @@ export const api = {
 
   async getYearlyBreakdown(req: {
     car_id: string
+    car?: CarInfo
     city: string
     km: number
     years: number
     city_ratio?: number
     rush_hour?: boolean
-  }): Promise<{ car_id: string; years: number; yearly: YearlyBreakdownEntry[] }> {
+  }): Promise<YearlyBreakdownResponse> {
     const res = await safeFetch(`${API_BASE}/api/tco/yearly-breakdown`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

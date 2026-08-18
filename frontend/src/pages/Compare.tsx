@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useSearchParams, Link } from 'react-router-dom'
 import { api, historyApi, configApi, formatVND, toTitleCase } from '../lib'
 import type { TcoResult, CarInfo, YearlyBreakdownEntry } from '../lib'
+import { useSeoMetaSafe, JsonLd, breadcrumbLd, SITE_URL } from '../lib/seo'
 import AccentButton from '../components/AccentButton'
 import GlassCard from '../components/ui/GlassCard'
 import CarMedia from '../components/CarMedia'
@@ -42,6 +43,7 @@ function compareInputsEqual(a: CompareInputSignature, b: CompareInputSignature):
 
 export default function Compare() {
   const { t, locale } = useI18n()
+  useSeoMetaSafe({ title: `ViDrive - ${t('nav.compare')}`, description: t('page.compareDescription') })
   const [searchParams, setSearchParams] = useSearchParams()
   const phase1 = import.meta.env.VITE_COMPETITIVE_PHASE === '1'
 
@@ -125,6 +127,8 @@ export default function Compare() {
     return car ? `${car.brand} ${car.model}` : id.toUpperCase()
   }
 
+  const isCustomCarId = (id: string): boolean => id.startsWith('custom-')
+
   const handleCalculate = useCallback(() => {
     const validIds = carIds.filter(id => id)
     if (validIds.length < 2) return
@@ -139,8 +143,15 @@ export default function Compare() {
       rush_hour: rushHour,
     }
     committedCompareRef.current = req
+    // Gather custom car specs to send alongside the compare request so the
+    // backend can resolve 'custom-*' IDs without a cars.json lookup.
+    const customCars = validIds
+      .filter(isCustomCarId)
+      .map(id => allCars.find(c => c.id === id))
+      .filter((c): c is CarInfo => c !== undefined)
     mutation.mutate({
       car_ids: validIds,
+      ...(customCars.length > 0 && { custom_cars: customCars }),
       city,
       km,
       years,
@@ -148,7 +159,7 @@ export default function Compare() {
       show_opp_cost: showOppCost,
       rush_hour: rushHour,
     })
-  }, [carIds, city, km, years, cityRatio, showOppCost, mutation])
+  }, [carIds, city, km, years, cityRatio, showOppCost, allCars, mutation])
 
   const addCar = () => {
     if (carIds.length < MAX_COMPARE_CARS) {
@@ -366,9 +377,15 @@ export default function Compare() {
   }
 
   const isML = (r: TcoResult) => r.resale_logic === 'ml'
+  const isCustom = (r: TcoResult) => r.resale_logic === 'custom'
 
   return (
     <div className="space-y-8">
+      <JsonLd data={breadcrumbLd([
+        { name: t('nav.home'), url: SITE_URL },
+        { name: t('compare.title'), url: `${SITE_URL}/compare` },
+      ])} />
+      <h1 className="sr-only">{t('compare.title')}</h1>
       <div className="grid lg:grid-cols-3 gap-8">
         {/* Inputs */}
         <div className="lg:col-span-1 space-y-5">
@@ -538,7 +555,7 @@ export default function Compare() {
                     className="p-5"
                     initial={{ opacity: 0, scale: 0.95 }}
                     animate={{ opacity: 1, scale: 1 }}
-                    transition={{ delay: i * 0.1 }}
+                    transition={{ delay: i * 0.06 }}
                   >
                     {i === bestIdx && (
                       <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-accent/15 border border-accent/30 text-accent text-xs font-semibold mb-3">
@@ -547,7 +564,7 @@ export default function Compare() {
                     </div>
                     )}
                     <div className="mb-3">
-                      <CarMedia carId={displayedCarIds[i]} type={cars?.find(c => c.id === displayedCarIds[i])?.type} segment={cars?.find(c => c.id === displayedCarIds[i])?.segment} aspect="16 / 9" disableHover />
+                      <CarMedia carId={displayedCarIds[i]} type={cars?.find(c => c.id === displayedCarIds[i])?.type} segment={cars?.find(c => c.id === displayedCarIds[i])?.segment} car={cars?.find(c => c.id === displayedCarIds[i])} aspect="16 / 9" disableHover />
                    </div>
                     <h3 className="text-lg font-heading font-bold text-[var(--text-primary)] mb-3">
                       {carName(displayedCarIds[i])}
@@ -569,10 +586,15 @@ export default function Compare() {
                         <span className="text-[var(--text-secondary)]">{t('compare.depreciation')}</span>
                         <span className="font-mono text-danger">{formatVND(r.depreciation)}</span>
                       </div>
-                      {isML(r) && (
+                      {isML(r) ? (
                         <div className="inline-flex items-center gap-1.25 px-2 py-0.5 rounded-full bg-accent/10 text-accent text-xs font-medium">
                           <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L18 9.27l-.75 3.08L15.58 14l-2.94 1.79.69 3.4L12 20l-2.94 1.79.69-3.4L6.75 12.27 6 9.27l2.09-1.01L12 8.26z"/></svg>
                           {t('compare.mlBadge')}
+                        </div>
+                      ) : (
+                        <div className="inline-flex items-center gap-1.25 px-2 py-0.5 rounded-full bg-[var(--text-muted)]/10 text-[var(--text-muted)] text-xs font-medium">
+                          <span className="w-1.5 h-1.5 rounded-full bg-[var(--text-muted)]" />
+                          {t('compare.parametricBadge')}
                         </div>
                       )}
                     </div>
@@ -663,6 +685,7 @@ export default function Compare() {
                                       {results.map((r, i) => {
                                         const val = item.get(r)
                                         const isMLResale = section.key === 'depreciation' && isML(r) && item.key === 'depreciation'
+                                        const isParametricResale = section.key === 'depreciation' && !isML(r) && item.key === 'depreciation'
                                         const negative = 'isNegative' in item && item.isNegative
                                         return (
                                           <td key={i} className="text-right py-2 font-mono align-top">
@@ -682,6 +705,33 @@ export default function Compare() {
                                                 )}
                                                 {r.resale_note_key && (
                                                   <div className="text-[10px] text-[var(--text-muted)] mt-0.5">{t(r.resale_note_key)}</div>
+                                                )}
+                                                {r.resale_guarantee_floor != null && (
+                                                  <div className="text-[10px] text-[var(--text-secondary)] mt-0.5">
+                                                    <span className="font-medium">{t('tco.guaranteeFloor')}</span>: {formatVND(r.resale_guarantee_floor)}
+                                                    {r.resale_guarantee_floor < r.resale && (
+                                                      <div className="text-[10px] text-[var(--text-muted)] mt-0.5">{t('tco.guaranteeFloorBelowMarket')}</div>
+                                                    )}
+                                                  </div>
+                                                )}
+                                              </>
+                                            )}
+                                            {isParametricResale && (
+                                              <>
+                                                <div className="inline-flex items-center gap-1 mt-1 text-[10px] text-[var(--text-muted)]">
+                                                  <span className="w-1.5 h-1.5 rounded-full bg-[var(--text-muted)]" />
+                                                  {t('compare.parametricBadge')}
+                                                </div>
+                                                {r.resale_note_key && (
+                                                  <div className="text-[10px] text-[var(--text-muted)] mt-0.5">{t(r.resale_note_key)}</div>
+                                                )}
+                                                {r.resale_guarantee_floor != null && (
+                                                  <div className="text-[10px] text-[var(--text-secondary)] mt-0.5">
+                                                    <span className="font-medium">{t('tco.guaranteeFloor')}</span>: {formatVND(r.resale_guarantee_floor)}
+                                                    {r.resale_guarantee_floor < r.resale && (
+                                                      <div className="text-[10px] text-[var(--text-muted)] mt-0.5">{t('tco.guaranteeFloorBelowMarket')}</div>
+                                                    )}
+                                                  </div>
                                                 )}
                                               </>
                                             )}

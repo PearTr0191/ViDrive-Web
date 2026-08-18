@@ -35,7 +35,7 @@ import { useState } from 'react'
 // Zone boundaries (as fractions of full bar height).
 const GREEN_END = 0.77      // fill below this → solid green
 const REDLINE_START = 0.82  // fill at/above this → red zone visible
-const CRITICAL = 0.97       // fill at/above this → ENTIRE fill snaps solid red (no transition)
+const CRITICAL = 0.99       // fill at/above this → ENTIRE fill snaps solid red (no transition)
 
 // Width — shaved 25 % off the original 8/6 px bar.
 const BAR_WIDTH = 6   // px — compact for mobile, matches --scrollbar-width

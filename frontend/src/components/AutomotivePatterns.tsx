@@ -19,14 +19,16 @@ interface GaugeProps extends PatternProps {
   size?: number
 }
 
-// GrillePattern - horizontal bar pattern like a car grille
-export function GrillePattern({ className = '', opacity = 0.1 }: PatternProps) {
+// GridPattern - subtle engineering grid (horizontal + vertical lines)
+export function GridPattern({ className = '', opacity = 0.1 }: PatternProps) {
   return (
     <div
       className={`absolute inset-0 pointer-events-none ${className}`}
       style={{
         opacity,
-        backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 8px, var(--accent) 8px, var(--accent) 10px)',
+        backgroundImage:
+          'repeating-linear-gradient(0deg, transparent, transparent 22px, var(--accent) 22px, var(--accent) 23px), ' +
+          'repeating-linear-gradient(90deg, transparent, transparent 22px, var(--accent) 22px, var(--accent) 23px)',
         maskImage: 'linear-gradient(to bottom, black 0%, transparent 100%)',
         WebkitMaskImage: 'linear-gradient(to bottom, black 0%, transparent 100%)',
       }}

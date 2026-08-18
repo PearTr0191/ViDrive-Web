@@ -203,6 +203,7 @@ class TcoRequest(BaseModel):
     """Request for a single-car TCO calculation."""
 
     car_id: str
+    car: CarInfo | None = None  # provided when car_id starts with 'custom-'
     city: str = "hanoi"
     km: float = Field(15000, ge=0, le=MAX_ANNUAL_KM)
     years: int = Field(5, ge=0, le=MAX_TCO_YEARS)
@@ -217,6 +218,7 @@ class CompareRequest(BaseModel):
     """Request for a multi-car comparison."""
 
     car_ids: list[str] = Field(..., min_length=2, max_length=MAX_COMPARISON_CARS)
+    custom_cars: list[CarInfo] | None = None  # provided when any car_id starts with 'custom-'
     city: str = "hanoi"
     km: float = Field(15000, ge=0, le=MAX_ANNUAL_KM)
     years: int = Field(5, ge=0, le=MAX_TCO_YEARS)
@@ -269,6 +271,7 @@ class BreakdownRequest(BaseModel):
     """Request for a calculation breakdown (verbose mode)."""
 
     car_id: str
+    car: CarInfo | None = None  # provided when car_id starts with 'custom-'
     city: str = "hanoi"
     km: float = Field(15000, ge=0, le=MAX_ANNUAL_KM)
     years: int = Field(5, ge=0, le=MAX_TCO_YEARS)
@@ -287,11 +290,14 @@ class ParkingTollOut(BaseModel):
 
 
 class RegistrationOut(BaseModel):
-    """Registration tax + plate fee + inspection, all rounded to nearest VND."""
+    """Registration tax + plate fee + inspection + year-1 road fee + insurance + on-road."""
 
     tax: int
     plate: int
     inspection: int
+    road_fee: int
+    insurance: int
+    on_road: int
     total: int
 
 
@@ -312,6 +318,10 @@ class TcoResult(BaseModel):
     resale_spread: int | None = None
     resale_std: int | None = None
     resale_note_key: str | None = None
+    resale_market_value: int | None = None
+    resale_guarantee_value: int | None = None
+    resale_guarantee_floor: int | None = None
+    warnings: list[str] | None = None
     depreciation: int
     opp_cost: int
     liquidity: str
@@ -323,6 +333,7 @@ class TcoResult(BaseModel):
     rush_hour_applied: bool = False
     confidence_low: int | None = None
     confidence_high: int | None = None
+    ml_max_year: int | None = None
 
 
 class YearlyBreakdownOut(BaseModel):
@@ -337,6 +348,8 @@ class YearlyBreakdownOut(BaseModel):
     parking_toll: int
     operating_cumulative: int
     resale: int
+    resale_market_value: int | None = None
+    resale_guarantee_value: int | None = None
     depreciation: int
     cumulative_tco: int
 
@@ -347,6 +360,8 @@ class YearlyBreakdownResponse(BaseModel):
     car_id: str
     years: int
     yearly: list[YearlyBreakdownOut]
+    warnings: list[str] | None = None
+    ml_max_year: int | None = None
 
 
 class TcoCalculationResponse(BaseModel):
@@ -405,6 +420,45 @@ def _get_cars() -> dict[str, dict]:
     if _cars_cache is None:
         _cars_cache = load_data()
     return _cars_cache
+
+
+def _is_custom_car_id(car_id: str) -> bool:
+    """True when *car_id* refers to a wizard-built custom car (not in cars.json)."""
+    return car_id.startswith("custom-")
+
+
+def _resolve_custom_car(car_id: str, car: CarInfo | None) -> dict:
+    """Build a car dict from the provided CarInfo for a custom car.
+
+    Raises HTTP 400 if *car* is missing when *car_id* is a custom ID, because
+    the backend cannot reconstruct a custom car from its ID alone.
+    """
+    if car is None:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "error": "Custom car data required",
+                "car_id": car_id,
+                "message": "Custom cars (ID starting with 'custom-') must include the full car payload in the 'car' field.",
+            },
+        )
+    car_dict = car.model_dump()
+    car_dict["id"] = car_id
+    return car_dict
+
+
+def _resolve_car(car_id: str, car: CarInfo | None, cars: dict[str, dict]) -> dict:
+    """Resolve a car by ID, falling back to provided custom car data.
+
+    Regular cars are looked up in *cars* (cars.json). Custom cars (IDs starting
+    with ``custom-``) require the ``car`` payload and are not looked up in
+    cars.json.
+    """
+    if _is_custom_car_id(car_id):
+        return _resolve_custom_car(car_id, car)
+    if car_id not in cars:
+        raise HTTPException(status_code=404, detail=f"Car '{car_id}' not found")
+    return cars[car_id]
 
 
 _ownership_stats_cache: dict | None = None
@@ -595,11 +649,13 @@ def ownership_stats(car_id: str | None = None):
 
 @app.post("/api/tco/calculate", response_model=TcoCalculationResponse)
 def calculate_tco(req: TcoRequest):
-    """Calculate TCO for a single car."""
+    """Calculate TCO for a single car.
+
+    Custom cars (car_id starting with ``custom-``) must include the full car
+    payload in ``req.car``; they are not present in cars.json.
+    """
     cars = _get_cars()
-    if req.car_id not in cars:
-        raise HTTPException(status_code=404, detail=f"Car '{req.car_id}' not found")
-    c = cars[req.car_id]
+    c = _resolve_car(req.car_id, req.car, cars)
     car_info = CarInfo(
         id=req.car_id,
         brand=c.get("brand", ""),
@@ -637,14 +693,31 @@ def calculate_tco(req: TcoRequest):
 
 @app.post("/api/tco/compare", response_model=CompareResponse)
 def compare_tco(req: CompareRequest):
-    """Compare TCO for multiple cars."""
+    """Compare TCO for multiple cars.
+
+    Custom cars (car_id starting with ``custom-``) must be included in
+    ``req.custom_cars`` with matching IDs.
+    """
     cars = _get_cars()
+    # Build lookup from custom_cars if provided
+    custom_lookup: dict[str, CarInfo] = {}
+    if req.custom_cars:
+        for cc in req.custom_cars:
+            custom_lookup[cc.id] = cc
     for cid in req.car_ids:
-        if cid not in cars:
+        if _is_custom_car_id(cid):
+            if cid not in custom_lookup:
+                raise HTTPException(
+                    status_code=400,
+                    detail={"error": "Custom car data required", "car_id": cid,
+                            "message": "Custom cars must be included in the 'custom_cars' field."},
+                )
+        elif cid not in cars:
             raise HTTPException(status_code=404, detail=f"Car '{cid}' not found")
     area = _resolve_area(req.city, req.area)
     results = [
-        get_tco(_enrich_car(cars[cid], cid), req.city, req.km, req.years, area=area, city_ratio=req.city_ratio,
+        get_tco(_enrich_car(_resolve_car(cid, custom_lookup.get(cid), cars), cid),
+                req.city, req.km, req.years, area=area, city_ratio=req.city_ratio,
                 rush_hour=req.rush_hour, include_insurance=req.include_insurance)
         for cid in req.car_ids
     ]
@@ -666,9 +739,7 @@ def compare_tco(req: CompareRequest):
 def tco_breakdown(req: BreakdownRequest):
     """Return detailed calculation breakdowns for fuel and registration."""
     cars = _get_cars()
-    if req.car_id not in cars:
-        raise HTTPException(status_code=404, detail=f"Car '{req.car_id}' not found")
-    car = cars[req.car_id]
+    car = _resolve_car(req.car_id, req.car, cars)
     area = _resolve_area(req.city, req.area)
     fuel = get_fuel_breakdown(car, req.km, req.years, req.city_ratio, rush_hour=req.rush_hour)
     registration = get_registration_breakdown(car, area, city=req.city)
@@ -679,11 +750,9 @@ def tco_breakdown(req: BreakdownRequest):
 def tco_yearly_breakdown(req: TcoRequest):
     """Return per-year TCO breakdown for chart visualization with non-linear curves."""
     cars = _get_cars()
-    if req.car_id not in cars:
-        raise HTTPException(status_code=404, detail=f"Car '{req.car_id}' not found")
-    car = cars[req.car_id]
+    car = _resolve_car(req.car_id, req.car, cars)
     area = _resolve_area(req.city, req.area)
-    yearly = get_tco_yearly(
+    yearly, warnings, ml_max_year = get_tco_yearly(
         _enrich_car(car, req.car_id), req.city, req.km, req.years,
         area=area, city_ratio=req.city_ratio,
     )
@@ -691,6 +760,8 @@ def tco_yearly_breakdown(req: TcoRequest):
         "car_id": req.car_id,
         "years": req.years,
         "yearly": yearly,
+        "warnings": warnings if warnings else None,
+        "ml_max_year": ml_max_year,
     }
 
 

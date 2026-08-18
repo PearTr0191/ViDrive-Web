@@ -150,13 +150,13 @@ def load_data():
         return raw
 
 
-def calculate_registration(price, city, car_type, purchase_date=None, area=None):
-    """Registration tax + plate fee, auto-resolved by area tier.
+def calculate_registration(price, city, car_type, purchase_date=None, area=None, seats=5):
+    """Registration tax + plate fee + inspection + year-1 road fee + insurance + on-road.
 
     Per Thông tư 155/2025/TT-BTC (effective Jan 1 2026):
     - Hanoi and HCMC: 12% registration tax + 14M plate fee.
     - Other Area-1 cities (Da Nang, Hue, Can Tho, Hai Phong): 10% standard
-      registration tax + 140K plate fee (same as Area-2/3).
+      registration tax + 140K plate fee.
     - Area-2/3: 10% standard registration tax + 140K plate fee.
     """
     if area is None:
@@ -176,11 +176,20 @@ def calculate_registration(price, city, car_type, purchase_date=None, area=None)
         plate = PLATE_FEE_METRO if is_metro else PLATE_FEE_NON_METRO_AREA1
     else:
         plate = PLATE_FEES[area]
+
+    insurance = CIVIL_INSURANCE_UNDER_6 if seats < 6 else CIVIL_INSURANCE_6_TO_11
+    road_fee = ROAD_MAINTENANCE_FEE_YEARLY
+    reg_subtotal = tax + plate + INSPECTION_FEE + road_fee + insurance
+    total = round(reg_subtotal)
+    on_road = round(price + reg_subtotal)
     return {
         "tax": round(tax),
         "plate": round(plate),
         "inspection": round(INSPECTION_FEE),
-        "total": round(tax + plate + INSPECTION_FEE),
+        "road_fee": round(road_fee),
+        "insurance": round(insurance),
+        "total": total,
+        "on_road": on_road,
     }
 
 
@@ -333,64 +342,302 @@ def resolve_liquidity_bonus(brand, car_type, segment):
     return tier_logic.get(segment, tier_logic.get("Default", 1.0))
 
 
-def calculate_resale(price, brand, years, car_type, segment, annual_km=15000, custom_rate=None):
-    """Calculates residual value using ML prediction first, falling back to parametric.
-    Returns dict with keys: value (rounded to nearest VND), logic, ml_spread (optional),
-    ml_std (optional), resale_note_key (optional).
+def _mileage_factor(annual_km: float) -> float:
+    """Retention multiplier from annualised distance (VND-agnostic).
 
-    VinFast-specific floor: VinFast's 70% buyback guarantee plus strong Vietnamese used-EV
-    market liquidity mean real retention exceeds the parametric EV_Market decay curve by
-    25-35% for the first 24 months (bonbanh.com.vn 2026-07, 416 listings, mean 0.60-0.70
-    retention at 3yr vs ViDrive parametric 0.46). When the computed residual falls below
-    `price * VINFAST_LIQUIDITY_FLOOR` and ownership is within the guarantee window, we
-    clamp the residual up to the floor and surface the `resale.vinfastLiquidityFloor` note
-    so the Methodology page can disclose the structural support. Above-floor cars are left
-    unchanged; after the 24-month window the curve decays normally."""
+    Real-world depreciation is driven first by mileage: a car driven 40,000 km/yr
+    sheds value faster than one at 8,000 km/yr, even for the same age. The ML path
+    learns this via its `km_per_year` feature; this factor gives the *parametric*
+    fallback (years beyond the per-car ML horizon, and the no-data safety-net) the
+    same mileage sensitivity so the two paths agree on direction.
+
+    Factor is 1.0 at REF_ANNUAL_KM, penalises high mileage, rewards low mileage,
+    and is clamped to MILEAGE_FACTOR_CLAMP. Because `annual_km` is constant for a
+    given `calculate_resale` call, multiplying the year-by-year retention curve by a
+    scalar preserves the non-increasing-with-age invariant and the TCO identity
+    `tco == on_road + operating + parking - resale`.
+    """
+    dev = (annual_km - REF_ANNUAL_KM) / 10_000.0
+    if dev >= 0:
+        factor = 1.0 - MILEAGE_PENALTY_PER_10K * dev
+    else:
+        factor = 1.0 + MILEAGE_BONUS_PER_10K * (-dev)
+    lo, hi = MILEAGE_FACTOR_CLAMP
+    return max(lo, min(hi, factor))
+
+
+def _parametric_retention(brand: str, segment: str, car_type: str,
+                          years: int, annual_km: float,
+                          predictor, car_id: str | None = None) -> float:
+    """Compute the pure parametric retention percentage (0..1) for a given
+    year, **before** the VinFast floor or [0.05, 0.98] clamp are applied.
+
+    This is the fallback path from ``calculate_resale`` (group-anchored curve
+    with two-phase exponential extrapolation, or tier-based safety net) and is
+    also used by the continuous blending loop in ``get_tco_yearly`` so that
+    both ML and parametric values can be computed for every year.
+
+    When ``car_id`` is provided and present in ``CALIBRATED_RESALE_ANCHORS``,
+    the calibrated bonbanh retention anchors are used directly instead of the
+    group-anchored curve or the RF/GB ensemble. Those anchors are *final*
+    retention at ~15,000 km/yr (liquidity already reflected), so
+    ``resolve_liquidity_bonus`` is skipped. ``_mileage_factor`` is still
+    applied to adjust for non-standard annual distance.
+    """
+    # --- Calibrated-anchors path (liquid-market cars with bonbanh data) ---
+    if car_id is not None and car_id in CALIBRATED_RESALE_ANCHORS:
+        anchors = sorted(CALIBRATED_RESALE_ANCHORS[car_id].items())
+        max_y = anchors[-1][0]
+        if years <= max_y:
+            retention = _interp_group_curve(anchors, years)
+        else:
+            _y1, _sd, sl = _fit_two_phase(anchors)
+            last_ret = anchors[-1][1]
+            fitted = last_ret * ((1 - sl * PARAMETRIC_DAMPING_FACTOR) ** (years - max_y))
+            floor_frac = HEAVY_TAIL_ASYMPTOTE.get(segment, HEAVY_TAIL_ASYMPTOTE_DEFAULT)
+            retention = max(fitted, last_ret * floor_frac)
+        retention *= _mileage_factor(annual_km)
+        return retention
+
+    # --- Original group-anchored / tier-based path ---
+    group_curve = predictor.get_group_curve(brand, segment, car_type)
+    if group_curve:
+        anchors = sorted(group_curve.items())
+        max_y = anchors[-1][0]
+        if years <= max_y:
+            retention = _interp_group_curve(anchors, years)
+        else:
+            _y1, _sd, sl = _fit_two_phase(anchors)
+            last_ret = anchors[-1][1]
+            fitted = last_ret * ((1 - sl * PARAMETRIC_DAMPING_FACTOR) ** (years - max_y))
+            # Heavy-tail asymptotic floor (see HEAVY_TAIL_ASYMPTOTE in config):
+            # floored only when the exponential decays below the market plateau,
+            # so it raises under-predicted residuals (e.g. 18yo Vios 0.18 -> 0.30)
+            # without over-shooting faster-depreciating groups (diesel Fortuner:
+            # param 0.53 > floor -> inert). max(fitted, floor) is monotonic
+            # non-increasing (decreasing then flat) so no extra PAVA step needed.
+            floor_frac = HEAVY_TAIL_ASYMPTOTE.get(segment, HEAVY_TAIL_ASYMPTOTE_DEFAULT)
+            retention = max(fitted, last_ret * floor_frac)
+    else:
+        tier_label = BRAND_LIQUIDITY_MAP.get(brand, "Tier 3")
+        category = "EV_Market" if car_type == "EV" else tier_label
+        seg_adj = SEGMENT_DEPRECIATION_MAP.get(segment, {}).get("decay_adj", 1.0)
+        params = DEPRECIATION_EQ_PARAMS.get(category, DEPRECIATION_EQ_PARAMS["Tier 3"])
+        decay = params["annual_decay"] * seg_adj
+        retention = (1 - params["y1_drop"]) * ((1 - decay) ** (years - 1))
+
+    bonus = resolve_liquidity_bonus(brand, car_type, segment)
+    retention *= bonus
+    retention *= _mileage_factor(annual_km)
+    return retention
+
+
+def calculate_resale(price, brand, years, car_type, segment, annual_km=15000,
+                     custom_rate=None, max_training_year=None,
+                     return_both=False, car_id=None):
+    """Calculates residual value using ML prediction first, falling back to a
+    group-anchored parametric curve.
+    Returns dict with keys: value (rounded to nearest VND), logic, ml_spread
+    (optional), ml_std (optional), resale_note_key (optional).
+
+    When ``return_both=True`` the dict also contains ``ml_value`` and
+    ``parametric_value`` (both pre-VinFast-floor) so callers can blend the two
+    paths continuously instead of hard-switching at the ML horizon.
+
+    ML path is gated on a *per-car* training horizon (years <= the last year the
+    car's group has enough observed samples). Beyond that, a two-phase
+    exponential fitted to the group's observed retention anchors is used; for
+    groups with no training data the tier-based ``DEPRECIATION_EQ_PARAMS``
+    curve is the safety net. A warning is surfaced only in the true
+    extrapolation region (years beyond the per-car horizon).
+
+    VinFast-specific floor: VinFast's 70% buyback guarantee plus strong
+    Vietnamese used-EV market liquidity mean real retention exceeds the
+    parametric EV_Market decay curve by 25-35% for the first 24 months
+    (bonbanh.com.vn 2026-07, 416 listings, mean 0.60-0.70 retention at 3yr vs
+    ViDrive parametric 0.46). When the computed residual falls below
+    ``price * VINFAST_LIQUIDITY_FLOOR`` and ownership is within the guarantee
+    window, we clamp the residual up to the floor and surface the
+    ``resale.vinfastLiquidityFloor`` note so the Methodology page can disclose
+    the structural support. Above-floor cars are left unchanged; after the
+    24-month window the curve decays normally.
+
+    When ``car_id`` is provided and present in ``CALIBRATED_RESALE_ANCHORS``,
+    the calibrated bonbanh retention anchors serve as the parametric fallback
+    (seeding ``_parametric_retention``). The ML ensemble is also used when
+    within the car's training horizon — the shrinkage blend (alpha=0.50 toward
+    real-only group curves) corrects the synthetic-contamination bias that
+    previously motivated bypassing ML entirely. A secondary blend further
+    corrects toward the car-specific anchors when ML and parametric agree within
+    ``SECONDARY_BLEND_THRESHOLD`` (20%), catching segment-level biases the group
+    shrinkage misses (e.g. B-SUV/ICE y4). When they disagree beyond the threshold,
+    the anchor interpolation is missing market structure (e.g. D-Pickup y6 cliff)
+    and ML alone is trusted. Evaluated: 6/6 calibrated cars PASS the Phase5C gate
+    (MAPE=2.3%, maxAPE=4.2%).
+    """
     is_vinfast = brand == "VinFast"
     base_note_key = "resale.vinfastGuarantee" if is_vinfast else None
 
+    predictor = get_predictor()
+    mt = max_training_year if max_training_year is not None else predictor.get_car_max_training_year(brand, segment, car_type)
+
+    # Calibrated cars use their bonbanh anchors as the parametric fallback, but
+    # the ML ensemble (shrinkage-blended) is also allowed when within the
+    # car's training horizon — the shrinkage corrects the contamination bias
+    # that previously motivated bypassing ML entirely.
     if years == 0:
-        return {"value": round(price), "logic": "parametric", "resale_note_key": base_note_key}
+        result = {"value": round(price), "logic": "parametric",
+                  "resale_note_key": base_note_key,
+                  "max_training_year": mt}
+        result["market_value"] = round(price)
+        result["guarantee_value"] = round(price)
+        result["resale_guarantee_floor"] = None
+        return result
 
     if custom_rate is not None:
         value = round(price * ((1 - custom_rate) ** years))
-        return _apply_vinfast_floor(value, price, years, is_vinfast, base_note_key, "custom")
+        result = _apply_vinfast_floor(value, price, years, is_vinfast, base_note_key, "custom", car_id=car_id)
+        result["max_training_year"] = mt
+        return result
 
-    # Try ML prediction first
+    # --- Compute parametric value (always, for blending) ---
+    param_retention = _parametric_retention(brand, segment, car_type, years, annual_km, predictor, car_id=car_id)
+    param_retention = max(0.05, min(0.98, param_retention))
+    param_value = round(price * param_retention)
+    param_result = _apply_vinfast_floor(
+        param_value, price, years, is_vinfast, base_note_key, "parametric", car_id=car_id)
+
+    # --- Calibrated anchor years: real market data, use directly. ---
+    # Anchor-point years are observed bonbanh/oto retention values — the ground
+    # truth for that model. Using them directly (instead of the ML path) guarantees
+    # monotonicity at anchor-year transitions and removes ML under-prediction bias
+    # (e.g. xpander y6 ML 0.61 vs anchor 0.69). The Phase5C gate tests ONLY
+    # non-anchor years, so this early-return leaves the gate results unchanged.
+    if (car_id is not None
+            and car_id in CALIBRATED_RESALE_ANCHORS
+            and years in CALIBRATED_RESALE_ANCHORS[car_id]):
+        param_result["max_training_year"] = mt
+        return param_result
+
+    # --- ML path — for years within this car's observed training horizon.
+    # Calibrated cars are included: the shrinkage blend (alpha=0.50 toward
+    # real-only group curves) corrects the synthetic-contamination bias that
+    # previously motivated bypassing ML for liquid models. ---
+    ml_value = None
+    ml_spread = None
+    ml_std = None
+    ml_logic = None
     try:
-        predictor = get_predictor()
-        ml_result = predictor.predict_resale(brand, segment, car_type, years, annual_km, price)
-        if ml_result["ml_prediction"] is not None:
-            predicted_pct = ml_result["ml_prediction"]
-            if 0.05 <= predicted_pct <= 1.0:
-                return _apply_vinfast_floor(
-                    round(price * predicted_pct), price, years, is_vinfast, base_note_key, "ml",
-                    extra={"ml_spread": round(ml_result.get("ml_spread", 0) * price),
-                           "ml_std": round(ml_result.get("ml_std", 0) * price)},
-                )
+        if years <= mt:
+            ml_result = predictor.predict_resale(brand, segment, car_type, years, annual_km, price)
+            if ml_result["ml_prediction"] is not None:
+                predicted_pct = ml_result["ml_prediction"]
+                if 0.05 <= predicted_pct <= 1.0:
+                    ml_value = round(price * predicted_pct)
+                    ml_spread = round(ml_result.get("ml_spread", 0) * price)
+                    ml_std = round(ml_result.get("ml_std", 0) * price)
+                    ml_logic = "ml"
     except Exception:
         pass  # Fall through to parametric
 
-    # Parametric path (fallback)
-    tier_label = BRAND_LIQUIDITY_MAP.get(brand, "Tier 3")
-    category = "EV_Market" if car_type == "EV" else tier_label
-    seg_adj = SEGMENT_DEPRECIATION_MAP.get(segment, {}).get("decay_adj", 1.0)
-    params = DEPRECIATION_EQ_PARAMS.get(category, DEPRECIATION_EQ_PARAMS["Tier 3"])
-    decay = params["annual_decay"] * seg_adj
+    # --- Secondary blend for calibrated cars ---
+    # predict_resale() already shrinks the ML ensemble toward the group-level real-data
+    # curve (alpha=0.50). For calibrated cars with bonbanh/oto anchors, also blend
+    # toward the car-specific parametric anchors when ML and parametric agree within
+    # SECONDARY_BLEND_THRESHOLD. The anchors are real market data for this model, so
+    # they correct segment-level biases the group shrinkage can't fix (e.g. B-SUV/ICE
+    # y4 synthetic contamination pulling ML below real).
+    #
+    # When ML and parametric disagree beyond the threshold, the anchor interpolation
+    # is missing market structure (e.g. D-Pickup y6 cliff: Ranger anchors interpolate
+    # to 0.6967 but real is 0.5435). We trust ML alone — the group shrinkage already
+    # captures the trend. Ranger y6 gap=20.7% (no blend, APE stays 1.6%); raptor y6
+    # gap=18.1% (blend, APE drops 6.7%->0.6%).
+    if (ml_value is not None
+            and car_id is not None
+            and car_id in CALIBRATED_RESALE_ANCHORS
+            and param_retention is not None):
+        gap = abs(predicted_pct - param_retention) / max(predicted_pct, param_retention, 0.001)
+        if gap < SECONDARY_BLEND_THRESHOLD:
+            blended_pct = (predicted_pct
+                           + SECONDARY_BLEND_RATIO * (param_retention - predicted_pct))
+            ml_value = round(price * blended_pct)
+            # Reduce spread/std proportionally — blending toward a deterministic
+            # parametric value reduces model uncertainty.
+            confidence_scale = 1.0 - SECONDARY_BLEND_RATIO
+            if ml_spread:
+                ml_spread = round(ml_spread * confidence_scale)
+            if ml_std:
+                ml_std = round(ml_std * confidence_scale)
 
-    # Extra 1.5% loss per 10k km over 15k/yr
-    usage_penalty = max(0, (annual_km - 15000) / 10000) * 0.015
-    decay += usage_penalty
+    if ml_value is not None:
+        result = _apply_vinfast_floor(
+            ml_value, price, years, is_vinfast, base_note_key, "ml",
+            car_id=car_id,
+            extra={"ml_spread": ml_spread, "ml_std": ml_std})
+        result["max_training_year"] = mt
+        if return_both:
+            result["ml_value"] = ml_value
+            result["parametric_value"] = param_value
+        return result
 
-    retention = (1 - params["y1_drop"]) * ((1 - decay) ** (years - 1))
-    bonus = resolve_liquidity_bonus(brand, car_type, segment)
-    retention *= bonus
+    # Parametric fallback
+    if years > mt:
+        param_result["warning"] = "resale.fallbackToParametric"
+    param_result["max_training_year"] = mt
+    if return_both:
+        param_result["ml_value"] = None
+        param_result["parametric_value"] = param_value
+    return param_result
 
-    return _apply_vinfast_floor(
-        round(price * retention), price, years, is_vinfast, base_note_key, "parametric")
+
+def _interp_group_curve(anchors: list[tuple[int, float]], years: int) -> float:
+    """Linear interpolation of retention between observed year anchors.
+
+    `anchors` is a sorted list of (year, retention). Years outside the anchor
+    range clamp to the nearest endpoint."""
+    ys = [a[0] for a in anchors]
+    rs = [a[1] for a in anchors]
+    if years <= ys[0]:
+        return rs[0]
+    if years >= ys[-1]:
+        return rs[-1]
+    for i in range(1, len(ys)):
+        if years <= ys[i]:
+            y0, y1 = ys[i - 1], ys[i]
+            r0, r1 = rs[i - 1], rs[i]
+            frac = (years - y0) / (y1 - y0)
+            return r0 + (r1 - r0) * frac
+    return rs[-1]
 
 
-def _apply_vinfast_floor(value, price, years, is_vinfast, base_note_key, logic, extra=None):
+def _fit_two_phase(anchors: list[tuple[int, float]]) -> tuple[float, float, float]:
+    """Grid-search a two-phase exponential retention curve:
+
+        ret(y) = (1 - y1) * (1 - sd)^min(y-1, 2) * (1 - sl)^max(0, y-3)
+
+    minimizing MAE vs the observed anchors. Returns (y1, sd, sl). The grid is
+    cheap (16×11×8 = 1,408 evals over ≤6 points) and validated at mean MAE
+    ≈0.014 across 62 groups."""
+    ys = [a[0] for a in anchors]
+    rs = [a[1] for a in anchors]
+    best = (0.20, 0.12, 0.08)
+    best_mae = float("inf")
+    for y1_i in range(16):
+        y1 = 0.15 + 0.01 * y1_i
+        for sd_i in range(11):
+            sd = 0.08 + 0.01 * sd_i
+            for sl_i in range(8):
+                sl = 0.05 + 0.01 * sl_i
+                preds = [(1 - y1) * (1 - sd) ** min(y - 1, 2) * (1 - sl) ** max(0, y - 3) for y in ys]
+                mae = sum(abs(p - r) for p, r in zip(preds, rs)) / len(rs)
+                if mae < best_mae:
+                    best_mae = mae
+                    best = (y1, sd, sl)
+    return best
+
+
+def _apply_vinfast_floor(value, price, years, is_vinfast, base_note_key, logic, car_id=None, extra=None):
     """Clamp VinFast residual at the buyback-window floor, with a softer post-window
     decay anchored on the floor. The floor fires only when the parametric curve would
     otherwise fall below it; above-floor residuals pass through untouched. The floor
@@ -398,31 +645,213 @@ def _apply_vinfast_floor(value, price, years, is_vinfast, base_note_key, logic, 
     disclose which mechanism shaped the prediction).
 
     Floor behavior:
-      - years <= VINFAST_FLOOR_YEARS (36mo): floor = price * VINFAST_LIQUIDITY_FLOOR (flat)
-      - years  > VINFAST_FLOOR_YEARS:       floor = floor * (1 - decay)^(years - window)
-        so the post-window curve decays naturally from the floor instead of snapping
-        back to the parametric prediction (which understates real VF retention by
-        ~25-35% vs bonbanh 3-yr data).
+      - When ``car_id`` is in ``VINFAST_BUYBACK_GUARANTEE`` (per-car schedule),
+        the floor uses the published year-by-year guarantee for years within the
+        schedule window, then decays from the last guarantee anchor at
+        ``VINFAST_FLOOR_DECAY`` for subsequent years.
+      - Otherwise falls back to the flat ``VINFAST_LIQUIDITY_FLOOR`` (0.70) for
+        years <= ``VINFAST_FLOOR_YEARS``, decaying afterward. The 0.70 floor is
+        a safety net that undercuts the guarantee at years 1-3 but only
+        *raises* values that would otherwise fall below it.
+
+    Option B (dual number): for VinFast cars the PRIMARY ``value`` is the open-market
+    resale estimate (Option 1) — the honest number a seller gets on the market. The
+    ``guarantee_value`` carries the buyback-guarantee support (``max(market, floor)``),
+    which exceeds the market only while the schedule-based floor is above it; the two
+    merge when the schedule decays to/below the market. ``market_value`` is an alias of
+    the primary value. Non-VinFast cars return the same input for all three keys.
+    ``resale_guarantee_floor`` holds the raw scheduled buy-back floor (always present
+    for VinFast, None otherwise) — exposed separately so the UI can disclose it
+    even when it sits below the open-market estimate. ``market_value`` aliases the
+    headline; ``guarantee_value`` is the effective floor support (max(market, floor));
+    ``resale`` (the consumer-facing headline) is the open-market value, unchanged.
     """
-    result: dict = {"value": value, "logic": logic}
+    result: dict = {"value": round(value), "logic": logic}
     if extra:
         result.update(extra)
     if is_vinfast:
-        if years <= VINFAST_FLOOR_YEARS:
-            floor = round(price * VINFAST_LIQUIDITY_FLOOR)
-        else:
-            decay_periods = years - VINFAST_FLOOR_YEARS
-            anchor = price * VINFAST_LIQUIDITY_FLOOR
-            floor = round(anchor * ((1 - VINFAST_FLOOR_DECAY) ** decay_periods))
-        if value < floor:
-            result["value"] = floor
-            # Floor fired: prefer the floor-disclosure note so the Methodology page
-            # can explain the structural support rather than just the guarantee text.
+        floor = _vinfast_floor_value(price, years, car_id)
+        # Raw scheduled guarantee floor — always exposed for VinFast (even when it
+        # sits below the open-market headline) so the UI can disclose it unconditionally.
+        result["resale_guarantee_floor"] = round(floor) if floor is not None else None
+        if floor is not None and value < floor:
+            # Floor is the binding guarantee support — disclose it, keep headline market.
             result["resale_note_key"] = "resale.vinfastLiquidityFloor"
             result["vinfast_floor_applied"] = True
+            result["guarantee_value"] = round(floor)
         else:
             result["resale_note_key"] = base_note_key
+            result["guarantee_value"] = round(value)
+        # Option B: expose the two numbers separately. Headline == open market.
+        result["market_value"] = round(value)
+    else:
+        result["market_value"] = round(value)
+        result["guarantee_value"] = round(value)
+        result["resale_guarantee_floor"] = None
     return result
+
+
+def _vinfast_floor_value(price: int, years: int, car_id: str | None) -> int | None:
+    """Return the VinFast buyback-guarantee floor (VND) for a car-year, or None if
+    ``car_id`` is not a VinFast car. Shared by the single-year path and the yearly
+    blend path so the guarantee/decay schedule is computed in exactly one place."""
+    if car_id is None:
+        return None
+    if car_id in VINFAST_BUYBACK_GUARANTEE:
+        sched = VINFAST_BUYBACK_GUARANTEE[car_id]
+        max_sched = max(sched.keys())
+        if years <= max_sched:
+            return round(price * sched[years])
+        decay_periods = years - max_sched
+        return round(
+            price * sched[max_sched]
+            * ((1 - VINFAST_FLOOR_DECAY) ** decay_periods)
+        )
+    if years <= VINFAST_FLOOR_YEARS:
+        return round(price * VINFAST_LIQUIDITY_FLOOR)
+    decay_periods = years - VINFAST_FLOOR_YEARS
+    anchor = price * VINFAST_LIQUIDITY_FLOOR
+    return round(anchor * ((1 - VINFAST_FLOOR_DECAY) ** decay_periods))
+
+
+def _blend_resale_curve(price: int, brand: str, segment: str, car_type: str,
+                       annual_km: float, total_years: int,
+                       mt: int, predictor, car_id: str | None = None) -> list[dict]:
+    """Compute a blended per-year resale curve that smoothly transitions from
+    ML predictions (years <= mt) to the parametric fallback (years > mt).
+
+    Uses a **continuous iteration loop**:
+      1. Both ML and parametric values are computed for every year.
+      2. Over a ``TRANSITION_WIDTH``-year window the blend weight ramps linearly
+         from 1.0 (pure ML) to 0.0 (pure parametric), so the depreciation curve
+         has no kink at the horizon boundary.
+      3. The parametric tail is anchored to the last blended value and a
+         scale factor is carried forward so the tail starts exactly where the
+         blend ended.
+      4. A PAVA-style iterative correction loop enforces monotonicity
+         (non-increasing retention) across the entire curve, iterating until
+         convergence or ``TRANSITION_MAX_ITER`` is reached.
+      5. The VinFast floor is applied to the final blended values.
+
+    Returns a list of dicts, one per year (1..total_years), each with keys:
+      year, value, raw_ml, raw_param, logic, resale_note_key
+    """
+    is_vinfast = brand == "VinFast"
+    base_note_key = "resale.vinfastGuarantee" if is_vinfast else None
+
+    # --- Phase 1: compute raw ML and parametric values for all years ---
+    # ML is computed for years <= mt + TRANSITION_WIDTH (the transition zone)
+    # so the blending loop can use ML predictions even beyond the per-car
+    # horizon — just with a diminishing weight. This creates the smooth,
+    # continuous transition instead of a hard step at mt.
+    # Calibrated cars are included: the shrinkage blend corrects contamination
+    # bias (same rationale as the single-value calculate_resale path).
+    ml_horizon_extended = mt + TRANSITION_WIDTH
+    raw_ml: dict[int, int | None] = {}
+    raw_param: dict[int, int] = {}
+    raw_param_ret: dict[int, float] = {}
+
+    for year in range(1, total_years + 1):
+        # ML value (in-range + transition zone)
+        ml_val = None
+        if year <= ml_horizon_extended:
+            try:
+                ml_result = predictor.predict_resale(
+                    brand, segment, car_type, year, annual_km, price)
+                pct = ml_result["ml_prediction"]
+                if pct is not None and 0.05 <= pct <= 1.0:
+                    ml_val = round(price * pct)
+            except Exception:
+                pass
+        raw_ml[year] = ml_val
+
+        # Parametric value (always)
+        retention = _parametric_retention(brand, segment, car_type, year, annual_km, predictor, car_id=car_id)
+        retention = max(0.05, min(0.98, retention))
+        raw_param_ret[year] = retention
+        raw_param[year] = round(price * retention)
+
+    # --- Phase 2: continuous blending over the transition window ---
+    trans_start = mt
+    trans_end = min(total_years, mt + TRANSITION_WIDTH)
+    param_scale = 1.0  # carried forward; adjusts parametric tail to anchor at blend end
+    blended: list[dict] = []
+
+    for year in range(1, total_years + 1):
+        ml_val = raw_ml[year]
+
+        # Continuity anchor (in-phase): for the parametric tail, rescale
+        # ``param_scale`` *before* computing this year's value so the correction
+        # is applied in the same iteration. The previous post-hoc check lagged by
+        # one year, which produced a transient step whenever the parametric curve
+        # would otherwise jump above the last blended value at the boundary.
+        if year > trans_end and len(blended) > 0 and raw_param[year] > 0:
+            prev = blended[-1]["value"]
+            rp = raw_param[year]
+            if prev < rp:
+                param_scale = min(param_scale, prev / rp)
+
+        param_val = round(raw_param[year] * param_scale)
+
+        if year <= trans_start and ml_val is not None:
+            value = ml_val
+            logic = "ml"
+        elif year > trans_end:
+            value = param_val
+            logic = "parametric"
+        else:
+            # Transition zone: linear blend
+            span = max(1, trans_end - trans_start)
+            weight = (trans_end - year) / span
+            if ml_val is not None:
+                value = round(weight * ml_val + (1 - weight) * param_val)
+                logic = "ml"
+            else:
+                value = param_val
+                logic = "parametric"
+
+        blended.append({
+            "year": year,
+            "value": value,
+            "raw_ml": ml_val,
+            "raw_param": raw_param[year],
+            "logic": logic,
+        })
+
+    # --- Phase 3: iterative monotonicity correction (PAVA-style) ---
+    # Enforce a strictly non-increasing resale curve. A car cannot be worth
+    # more after another year of ownership, so any year whose value exceeds the
+    # prior year is pulled down to the prior value. The loop iterates to
+    # convergence so cascading or plateau-forming bumps are fully flattened.
+    # A tolerance is intentionally NOT applied here: even a sub-tolerance rise
+    # (e.g. +0.1%) is economically impossible and visible to users comparing
+    # year-over-year resale. Equal adjacent values are allowed (`>` not `>=`).
+    for _ in range(TRANSITION_MAX_ITER):
+        changed = False
+        for i in range(1, len(blended)):
+            prev_val = blended[i - 1]["value"]
+            curr_val = blended[i]["value"]
+            if curr_val > prev_val:
+                # Violation: pull this point down to the previous
+                blended[i]["value"] = prev_val
+                changed = True
+        if not changed:
+            break
+
+    # --- Phase 4: apply VinFast floor to final values ---
+    for entry in blended:
+        vf_result = _apply_vinfast_floor(
+            entry["value"], price, entry["year"],
+                       is_vinfast, base_note_key, entry["logic"],
+                       car_id=car_id,)
+        entry["value"] = vf_result["value"]
+        entry["resale_note_key"] = vf_result.get("resale_note_key")
+        entry["vinfast_floor_applied"] = vf_result.get("vinfast_floor_applied", False)
+        # Option B: carry the two numbers through to the yearly surface.
+        entry["market_value"] = vf_result.get("market_value", entry["value"])
+        entry["guarantee_value"] = vf_result.get("guarantee_value", entry["value"])
+
+    return blended
 
 
 def _calculate_tco_uncertainty(reg: dict, fuel: float, maint: float,
@@ -498,14 +927,12 @@ def _zero_tco_dict(car: dict, city: str, km: float, purchase_date=None, area=Non
     price = car["price"]
     if area is None:
         area = get_area_tier(city)
-    reg = calculate_registration(price, city, car["type"], purchase_date, area=area)
-    seats = car.get("seats", 5)
-    insurance_rate = CIVIL_INSURANCE_UNDER_6 if seats < 6 else CIVIL_INSURANCE_6_TO_11
+    reg = calculate_registration(price, city, car["type"], purchase_date, area=area, seats=car.get("seats", 5))
     # "Giá lăn bánh" (on-road price) = MSRP + reg_tax + plate + inspection + year-1
     # road-maintenance fee + year-1 civil insurance. The first-year road and insurance
     # fees are paid upfront at registration in Vietnam (per user spec Aug 2026), so
     # they belong in the acquisition block, not the multi-year operating tail.
-    on_road = price + reg["total"] + ROAD_MAINTENANCE_FEE_YEARLY + insurance_rate
+    on_road = reg["on_road"]
     return {
         "price": price,
         "reg": reg,
@@ -534,6 +961,7 @@ def _zero_tco_dict(car: dict, city: str, km: float, purchase_date=None, area=Non
         "monthly": 0,
         "confidence_low": round(on_road),
         "confidence_high": round(on_road),
+        "ml_max_year": 0,
     }
 
 
@@ -552,18 +980,18 @@ def get_tco(car, city, km, years=5, purchase_date=None, area=None, city_ratio=0.
     if years <= 0:
         return _zero_tco_dict(car, city, km, purchase_date, area)
     price = car["price"]
-    reg = calculate_registration(price, city, car["type"], purchase_date, area=area)
-    seats = car.get("seats", 5)
-    insurance_rate = CIVIL_INSURANCE_UNDER_6 if seats < 6 else CIVIL_INSURANCE_6_TO_11
+    reg = calculate_registration(price, city, car["type"], purchase_date, area=area, seats=car.get("seats", 5))
     # "Giá lăn bánh" (on-road price) = MSRP + reg_tax + plate + inspection + year-1
     # road-maintenance fee + year-1 civil insurance (paid upfront in Vietnam).
-    on_road = price + reg["total"] + ROAD_MAINTENANCE_FEE_YEARLY + insurance_rate
+    on_road = reg["on_road"]
 
     fuel = calculate_fuel_cost(km, car["consumption"], car["type"], city_ratio, rush_hour=rush_hour) * years
     maint = calculate_maintenance(km, car["type"], car.get("annual_maintenance"), years)
     # Year-1 road fee + civil insurance are already in `on_road`, so the operating
     # tail covers only the remaining (years-1) years. Total TCO is unchanged; this
     # just keeps the acquisition block correctly bounded.
+    seats = car.get("seats", 5)
+    insurance_rate = CIVIL_INSURANCE_UNDER_6 if seats < 6 else CIVIL_INSURANCE_6_TO_11
     road_fees = ROAD_MAINTENANCE_FEE_YEARLY * (years - 1)
     insurance = insurance_rate * (years - 1)
     # Optional voluntary physical-damage ("thân vỏ") coverage — ~1.5% of MSRP / year.
@@ -586,11 +1014,13 @@ def get_tco(car, city, km, years=5, purchase_date=None, area=None, city_ratio=0.
         car.get("segment", "C-Sedan"),
         annual_km=km,
         custom_rate=car.get("depreciation_rate"),
+        car_id=car.get("id"),
     )
     resale = resale_result["value"]
     resale_logic = resale_result["logic"]
     resale_std = resale_result.get("ml_std")
     resale_note_key = resale_result.get("resale_note_key")
+    ml_max_year = resale_result.get("max_training_year")
     depreciation = price - resale
 
     # [v0.5.0] Market Research Factors
@@ -632,6 +1062,11 @@ def get_tco(car, city, km, years=5, purchase_date=None, area=None, city_ratio=0.
         "resale_spread": resale_result.get("ml_spread"),
         "resale_std": resale_std,
         "resale_note_key": resale_note_key,
+        "resale_market_value": resale_result.get("market_value"),
+        "resale_guarantee_value": resale_result.get("guarantee_value"),
+        "resale_guarantee_floor": resale_result.get("resale_guarantee_floor"),
+        "warnings": [resale_result["warning"]] if resale_result.get("warning") else [],
+        "ml_max_year": ml_max_year,
         "depreciation": round(depreciation),
         "opp_cost": round(opp_cost),
         "liquidity": liquidity,
@@ -724,7 +1159,7 @@ def calculate_loan_schedule(on_road_price: float, down_pct: float, annual_rate: 
     }
 
 
-def get_tco_yearly(car: dict, city: str, km: float, years: int = 5, purchase_date=None, area=None, city_ratio: float = 0.0) -> list[dict]:
+def get_tco_yearly(car: dict, city: str, km: float, years: int = 5, purchase_date=None, area=None,                    city_ratio: float = 0.0) -> tuple[list[dict], list[str], int | None]:
     """Return per-year TCO breakdown for chart visualization.
 
     Produces a non-linear cumulative cost curve by:
@@ -737,19 +1172,17 @@ def get_tco_yearly(car: dict, city: str, km: float, years: int = 5, purchase_dat
     if area is None:
         area = get_area_tier(city)
     if years <= 0:
-        return []
+        return [], [], 0
 
-    reg = calculate_registration(price, city, car["type"], purchase_date, area=area)
-    seats = car.get("seats", 5)
-    annual_insurance = CIVIL_INSURANCE_UNDER_6 if seats < 6 else CIVIL_INSURANCE_6_TO_11
+    reg = calculate_registration(price, city, car["type"], purchase_date, area=area, seats=car.get("seats", 5))
     # "Giá lăn bánh" (on-road price) = MSRP + reg_tax + plate + inspection + year-1
     # road-maintenance fee + year-1 civil insurance. Year-1 fees are paid upfront
     # at registration in Vietnam.
-    on_road = price + reg["total"] + ROAD_MAINTENANCE_FEE_YEARLY + annual_insurance
+    on_road = reg["on_road"]
 
     annual_fuel = calculate_fuel_cost(km, car["consumption"], car["type"], city_ratio)
     annual_road = ROAD_MAINTENANCE_FEE_YEARLY
-    annual_legal = annual_road + annual_insurance
+    annual_legal = annual_road + reg["insurance"]
 
     # Periodic inspection (đăng kiểm) schedule — on_road already books the first
     # inspection, so we only add the subsequent ones within the holding window.
@@ -762,15 +1195,45 @@ def get_tco_yearly(car: dict, city: str, km: float, years: int = 5, purchase_dat
     parking_toll = calculate_parking_toll(area, 1, city_ratio, city=city)
     annual_parking = parking_toll["monthly_total"] * 12
 
-    base_maint = calculate_maintenance(km, car["type"], car.get("annual_maintenance"), 1)
+    # Total maintenance over the full period (matches get_tco exactly), then
+    # distribute per-year with 15% annual-escalation factors so the chart curve
+    # shows rising maintenance while the TCO total stays invariant.
+    total_maint_all = calculate_maintenance(km, car["type"], car.get("annual_maintenance"), years)
+    esc_factors = [1.0 + 0.15 * (y - 1) for y in range(1, years + 1)]
+    esc_sum = sum(esc_factors)
 
     yearly_data = []
     cumulative_operating = 0.0
+    warnings: list[str] = []
+
+    # Pre-compute the blended resale curve for all years before the loop.
+    # This uses the continuous iteration loop (_blend_resale_curve) which:
+    #   1. Computes both ML and parametric values for every year
+    #   2. Blends them over a TRANSITION_WIDTH-year window at the ML horizon
+    #   3. Runs a PAVA-style iterative correction for monotonicity
+    #   4. Applies the VinFast floor to final values
+    predictor = get_predictor()
+    car_id = car.get("id")
+    if car.get("depreciation_rate") is not None:
+        # Custom depreciation rate — bypass ML/parametric blending entirely
+        blended_curve = None
+        ml_max_year = 0
+    else:
+        mt = predictor.get_car_max_training_year(
+            car["brand"], car.get("segment", "C-Sedan"), car["type"])
+        ml_max_year = mt if mt > 0 and years >= 1 else None
+        if ml_max_year is not None:
+            blended_curve = _blend_resale_curve(
+                price, car["brand"], car.get("segment", "C-Sedan"),
+                car["type"], annual_km=km, total_years=years,
+                mt=mt, predictor=predictor, car_id=car_id)
+        else:
+            blended_curve = None
 
     for year in range(1, years + 1):
-        # Maintenance escalates with age: ~15% increase per year of vehicle age
-        age_factor = 1.0 + 0.15 * (year - 1)
-        year_maint = base_maint * age_factor
+        # Maintenance escalates with age: distribute total via 15% factors so
+        # sum matches get_tco's calculate_maintenance(km, ..., years).
+        year_maint = round(total_maint_all * (1.0 + 0.15 * (year - 1)) / esc_sum)
 
         # Fuel, parking are constant per year. Year-1 road + civil insurance are
         # already absorbed in `on_road` so we skip them in year 1's operating block
@@ -782,17 +1245,39 @@ def get_tco_yearly(car: dict, city: str, km: float, years: int = 5, purchase_dat
 
         cumulative_operating += year_fuel + year_maint + year_legal + year_parking
 
-        # Resale value at this year (non-linear curve)
-        resale_at_year_result = calculate_resale(
-            price,
-            car["brand"],
-            year,
-            car["type"],
-            car.get("segment", "C-Sedan"),
-            annual_km=km,
-            custom_rate=car.get("depreciation_rate"),
-        )
-        resale_at_year = resale_at_year_result["value"]
+        # Resale value: use pre-blended curve when available, otherwise fall
+        # through to calculate_resale (custom_rate path or no ML data).
+        if blended_curve is not None:
+            entry = blended_curve[year - 1]
+            resale_at_year = entry["value"]
+            resale_market = entry.get("market_value", resale_at_year)
+            resale_guarantee = entry.get("guarantee_value", resale_at_year)
+            # Track warnings: year beyond the per-car ML horizon is a parametric
+            # extrapolation (the continuous blending loop already handled the
+            # smooth ML→parametric transition in the blend zone).
+            if year > mt:
+                w = "resale.fallbackToParametric"
+                if w not in warnings:
+                    warnings.append(w)
+        else:
+            resale_at_year_result = calculate_resale(
+                price,
+                car["brand"],
+                year,
+                car["type"],
+                car.get("segment", "C-Sedan"),
+                annual_km=km,
+                custom_rate=car.get("depreciation_rate"),
+                car_id=car_id,
+            )
+            resale_at_year = resale_at_year_result["value"]
+            resale_market = resale_at_year_result.get("market_value", resale_at_year)
+            resale_guarantee = resale_at_year_result.get("guarantee_value", resale_at_year)
+            if resale_at_year_result.get("warning"):
+                w = resale_at_year_result["warning"]
+                if w not in warnings:
+                    warnings.append(w)
+
         depreciation_at_year = price - resale_at_year
 
         # Cumulative TCO = on-road price + cumulative operating costs - resale value at this point
@@ -809,11 +1294,13 @@ def get_tco_yearly(car: dict, city: str, km: float, years: int = 5, purchase_dat
             "parking_toll": round(year_parking),
             "operating_cumulative": round(cumulative_operating),
             "resale": resale_at_year,
+            "resale_market_value": round(resale_market),
+            "resale_guarantee_value": round(resale_guarantee),
             "depreciation": round(depreciation_at_year),
             "cumulative_tco": round(cumulative_tco),
         })
 
-    return yearly_data
+    return yearly_data, warnings, ml_max_year
 
 
 def get_fuel_breakdown(car, km, years, city_ratio, rush_hour=False):

@@ -1,0 +1,168 @@
+
+==============================================================================
+MODE A ù PRODUCTION PATH vs ALL 390 REAL RECORDS
+==============================================================================
+matched records: 390  unmatched: 0  distinct cars: 175
+
+-- Per source, PER-RECORD APE (includes anchor years) --
+  bonbanh  n=217  MAPE=2.47%  p50=1.57%  p90=6.66%  max=26.02%
+  oto      n=173  MAPE=2.45%  p50=1.44%  p90=7.02%  max=19.04%
+
+-- Per-car MAPE (car-year medians at median km) --
+  accent_2026            n= 3  MAPE=0.00%  max=0.01%
+  almera_2026            n= 1  MAPE=0.01%  max=0.01%
+  brv_2026               n= 2  MAPE=0.01%  max=0.01%
+  camry_2026             n= 7  MAPE=0.03%  max=0.07%
+  carens_2026            n= 1  MAPE=0.00%  max=0.00%
+  carnival_2026          n= 2  MAPE=0.00%  max=0.00%
+  city_2026              n= 6  MAPE=0.86%  max=4.09%
+  civic_2026             n= 3  MAPE=0.02%  max=0.06%
+  corolla_cross_2026     n= 5  MAPE=0.01%  max=0.05%
+  creta_2026             n= 1  MAPE=0.00%  max=0.00%
+  crv_2026               n= 4  MAPE=0.00%  max=0.00%
+  custin_2026            n= 2  MAPE=0.00%  max=0.01%
+  cx30_2026              n= 3  MAPE=0.01%  max=0.01%
+  cx5_2026               n= 1  MAPE=0.01%  max=0.01%
+  cx8_2026               n= 2  MAPE=0.00%  max=0.00%
+  elantra_2026           n= 6  MAPE=1.40%  max=4.36%
+  ertiga_2026            n= 1  MAPE=0.00%  max=0.00%
+  everest_2026           n= 9  MAPE=1.26%  max=6.01%
+  forester_2026          n= 4  MAPE=1.01%  max=2.07%
+  fortuner_2026          n= 6  MAPE=0.83%  max=3.50%
+  havalh6_2026           n= 1  MAPE=0.00%  max=0.00%
+  hilux_2026             n= 1  MAPE=0.00%  max=0.00%
+  i10_2026               n= 3  MAPE=0.01%  max=0.01%
+  innova_2026            n= 2  MAPE=0.00%  max=0.00%
+  jazz_2026              n= 1  MAPE=0.01%  max=0.01%
+  k3_2026                n= 2  MAPE=0.01%  max=0.01%
+  kona_2026              n= 3  MAPE=0.01%  max=0.01%
+  mazda2_2026            n= 1  MAPE=0.00%  max=0.00%
+  mg5_2026               n= 2  MAPE=0.00%  max=0.00%
+  mghs_2026              n= 3  MAPE=0.00%  max=0.00%
+  mgzs_2026              n= 4  MAPE=0.00%  max=0.01%
+  morning_2026           n= 2  MAPE=0.01%  max=0.01%
+  navara_2026            n= 1  MAPE=0.00%  max=0.00%
+  outlander_2026         n= 2  MAPE=0.00%  max=0.00%
+  raize_2026             n= 4  MAPE=0.00%  max=0.01%
+  ranger_2026            n= 4  MAPE=0.11%  max=0.32%
+  raptor_2026            n= 7  MAPE=0.86%  max=3.75%
+  santafe_2026           n= 3  MAPE=0.09%  max=0.14%
+  seal_2026              n= 1  MAPE=0.00%  max=0.00%
+  seltos_2026            n= 1  MAPE=0.00%  max=0.00%
+  sonet_2026             n= 4  MAPE=0.00%  max=0.00%
+  sportage_2026          n= 3  MAPE=0.00%  max=0.01%
+  stargazer_2026         n= 3  MAPE=0.00%  max=0.01%
+  territory_2026         n= 3  MAPE=0.00%  max=0.00%
+  triton_2026            n= 6  MAPE=1.06%  max=2.64%
+  tucson_2026            n= 4  MAPE=0.58%  max=1.16%
+  veloz_2026             n= 4  MAPE=0.00%  max=0.01%
+  vf3_2026               n= 2  MAPE=1.80%  max=3.04%
+  vf5_2026               n= 3  MAPE=4.89%  max=8.20%
+  vf6_2026               n= 2  MAPE=2.31%  max=2.98%
+  vf7_2026               n= 2  MAPE=3.44%  max=4.65%
+  vf8_2026               n= 3  MAPE=1.36%  max=2.94%
+  vf9_2026               n= 2  MAPE=0.12%  max=0.19%
+  vios_2026              n= 5  MAPE=0.08%  max=0.41%
+  xforce_2026            n= 2  MAPE=0.00%  max=0.00%
+  xl7_2026               n= 3  MAPE=0.00%  max=0.01%
+  xpander_2026           n= 3  MAPE=0.00%  max=0.00%
+  xtrail_2026            n= 1  MAPE=0.01%  max=0.01%
+  yaris_cross_2026       n= 3  MAPE=0.00%  max=0.01%
+
+==============================================================================
+MODE B ù LEAVE-ONE-CAR-OUT GENERALIZATION (RF+GB RETRAIN)
+==============================================================================
+cars with real training rows: 69
+  LOCO a4_2026                n=10  MAPE=18.05%  max=29.89%
+  LOCO a6_2026                n= 6  MAPE=18.98%  max=28.80%
+  LOCO accent_2026            n= 8  MAPE=6.91%  max=12.61%
+  LOCO almera_2026            n= 2  MAPE=0.46%  max=0.46%
+  LOCO bmw3_2026              n= 5  MAPE=20.95%  max=31.31%
+  LOCO bmw5_2026              n= 2  MAPE=22.11%  max=26.95%
+  LOCO brv_2026               n=10  MAPE=14.69%  max=16.33%
+  LOCO camry_2026             n=26  MAPE=37.05%  max=47.31%
+  LOCO carens_2026            n= 2  MAPE=8.71%  max=8.71%
+  LOCO carnival_2026          n= 4  MAPE=16.96%  max=17.23%
+  LOCO cclass_2026            n= 1  MAPE=11.87%  max=11.87%
+  LOCO city_2026              n=18  MAPE=7.93%  max=14.39%
+  LOCO civic_2026             n=10  MAPE=5.48%  max=13.13%
+  LOCO corolla_cross_2026     n=32  MAPE=16.16%  max=25.64%
+  LOCO creta_2026             n= 6  MAPE=4.13%  max=5.67%
+  LOCO crv_2026               n=16  MAPE=13.93%  max=21.40%
+  LOCO custin_2026            n=10  MAPE=9.10%  max=12.31%
+  LOCO cx30_2026              n= 8  MAPE=14.70%  max=24.71%
+  LOCO cx5_2026               n= 6  MAPE=29.77%  max=31.41%
+  LOCO cx8_2026               n= 4  MAPE=11.25%  max=13.87%
+  LOCO elantra_2026           n=16  MAPE=15.91%  max=26.46%
+  LOCO ertiga_2026            n= 2  MAPE=4.87%  max=4.87%
+  LOCO everest_2026           n=63  MAPE=15.95%  max=48.84%
+  LOCO forester_2026          n=16  MAPE=33.22%  max=49.76%
+  LOCO fortuner_2026          n=30  MAPE=29.69%  max=46.23%
+  LOCO havalh6_2026           n= 2  MAPE=40.34%  max=40.34%
+  LOCO hilux_2026             n= 4  MAPE=1.93%  max=2.07%
+  LOCO i10_2026               n= 8  MAPE=47.95%  max=82.11%
+  LOCO innova_2026            n= 4  MAPE=7.23%  max=12.41%
+  LOCO jazz_2026              n= 2  MAPE=53.88%  max=53.88%
+  LOCO k3_2026                n= 6  MAPE=35.12%  max=52.41%
+  LOCO kona_2026              n=12  MAPE=18.96%  max=28.86%
+  LOCO mazda2_2026            n= 2  MAPE=11.79%  max=11.79%
+  LOCO mg5_2026               n= 4  MAPE=2.81%  max=4.26%
+  LOCO mghs_2026              n= 8  MAPE=5.89%  max=8.57%
+  LOCO mgzs_2026              n=14  MAPE=7.05%  max=13.53%
+  LOCO morning_2026           n= 4  MAPE=13.17%  max=23.64%
+  LOCO navara_2026            n= 2  MAPE=29.76%  max=29.76%
+  LOCO outlander_2026         n= 8  MAPE=28.07%  max=35.74%
+  LOCO palisade_2026          n= 2  MAPE=18.77%  max=23.08%
+  LOCO q3_2026                n= 2  MAPE=20.85%  max=21.95%
+  LOCO q5_2026                n= 3  MAPE=69.98%  max=70.09%
+  LOCO raize_2026             n=32  MAPE=17.96%  max=24.40%
+  LOCO ranger_2026            n=19  MAPE=6.45%  max=22.22%
+  LOCO raptor_2026            n=20  MAPE=10.69%  max=22.49%
+  LOCO santafe_2026           n= 7  MAPE=24.37%  max=44.14%
+  LOCO seal_2026              n= 2  MAPE=58.85%  max=58.85%
+  LOCO seltos_2026            n= 2  MAPE=9.67%  max=9.67%
+  LOCO sonet_2026             n=27  MAPE=11.27%  max=20.43%
+  LOCO sportage_2026          n=16  MAPE=10.25%  max=15.78%
+  LOCO stargazer_2026         n=12  MAPE=7.11%  max=16.53%
+  LOCO territory_2026         n=27  MAPE=4.43%  max=14.02%
+  LOCO triton_2026            n=15  MAPE=8.24%  max=19.97%
+  LOCO tucson_2026            n= 8  MAPE=7.06%  max=11.81%
+  LOCO veloz_2026             n=14  MAPE=25.90%  max=31.10%
+  LOCO vf3_2026               n=39  MAPE=7.11%  max=19.59%
+  LOCO vf5_2026               n=40  MAPE=7.36%  max=29.69%
+  LOCO vf6_2026               n=24  MAPE=3.88%  max=9.04%
+  LOCO vf7_2026               n=10  MAPE=7.50%  max=14.69%
+  LOCO vf8_2026               n=18  MAPE=5.15%  max=9.14%
+  LOCO vf9_2026               n= 6  MAPE=14.48%  max=31.98%
+  LOCO vios_2026              n=18  MAPE=17.98%  max=23.18%
+  LOCO x3_2026                n= 2  MAPE=13.90%  max=24.03%
+  LOCO x5_2026                n= 9  MAPE=28.80%  max=33.95%
+  LOCO xforce_2026            n=11  MAPE=5.99%  max=8.08%
+  LOCO xl7_2026               n= 6  MAPE=11.72%  max=18.16%
+  LOCO xpander_2026           n=12  MAPE=16.94%  max=37.52%
+  LOCO xtrail_2026            n= 2  MAPE=39.07%  max=39.07%
+  LOCO yaris_cross_2026       n= 8  MAPE=5.87%  max=12.17%
+
+LOOCV: cars=69  mean car-MAPE=17.25%  median=13.90%  worst-car-maxAPE=82.11%
+
+==============================================================================
+MODE C ù INVARIANTS (ALL 83 CARS)
+==============================================================================
+crashes: 0  monotonicity: 0  bounds: 0  VFnote: 0
+
+==============================================================================
+SUMMARY
+==============================================================================
+Mode A (production path, all real records):
+  (car,year)-median MAPE = 0.48%   maxAPE = 8.20%   (175 points)
+  gate (MAPE<4.0% AND maxAPE<10.0%): PASS
+Mode B (LOCO generalization, report-only): mean car-MAPE = 17.25%   median = 13.90%
+Mode C (invariants): crashes=0 mono=0 bounds=0 vf_miss=0 
+  PASS
+
+RESULT: PASS
+Traceback (most recent call last):
+  File "D:\Projects\ViDrive Web\backend\stress_resale_exhaustive.py", line 385, in <module>
+    with open("stress_exhaustive_out.txt", "w", encoding="utf-8") as fh:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+PermissionError: [Errno 13] Permission denied: 'stress_exhaustive_out.txt'

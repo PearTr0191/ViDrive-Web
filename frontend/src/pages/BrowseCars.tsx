@@ -4,6 +4,7 @@ import { useKeyboardShortcut, isModShortcut } from '../hooks/useKeyboardShortcut
 import { registerShortcutHandlers, unregisterShortcutHandlers } from '../hooks/useGlobalShortcuts'
 import { api, formatVND, stripDiacritics, formatConsumption } from '../lib'
 import type { CarInfo } from '../lib'
+import { useSeoMetaSafe, JsonLd, breadcrumbLd, SITE_URL } from '../lib/seo'
 import AccentButton from '../components/AccentButton'
 import GlassCard from '../components/ui/GlassCard'
 import CarMedia from '../components/CarMedia'
@@ -59,6 +60,7 @@ function SortableHeader({ column, sortState, onSort, align = 'right', children }
 
 export default function BrowseCars() {
   const { t } = useI18n()
+  useSeoMetaSafe({ title: `ViDrive - ${t('nav.browse')}`, description: t('page.browseDescription') })
   const [searchTerm, setSearchTerm] = useState('')
   const [activeType, setActiveType] = useState<string | null>(null)
   const [sortState, setSortState] = useState<SortState>({ key: null, direction: null })
@@ -225,6 +227,11 @@ export default function BrowseCars() {
 
   return (
     <div className="space-y-6">
+      <JsonLd data={breadcrumbLd([
+        { name: t('nav.home'), url: SITE_URL },
+        { name: t('nav.browse'), url: `${SITE_URL}/car` },
+      ])} />
+      <h1 className="sr-only">{t('browse.title')}</h1>
       {/* Custom car CTA — FIRST thing on the page for discoverability */}
       <Link to="/wizard" className="block">
         <GlassCard className="p-5 md:p-6 border-accent/40 bg-accent/5 hover:bg-accent/10 transition-colors cursor-pointer">
@@ -353,11 +360,11 @@ export default function BrowseCars() {
                 </tr>
               </thead>
               <tbody>
-{paginatedCars.map((c: CarInfo) => (
+{paginatedCars.map((c: CarInfo, idx: number) => (
                 <tr key={c.id} className="border-b border-[var(--border-subtle)] last:border-0 hover:bg-[rgba(var(--bg-base-rgb),0.2)] transition-colors">
                   <td className="py-4 px-4 w-32">
                     <Link to={`/car/${c.id}`} className="block">
-                      <CarMedia carId={c.id} type={c.type} segment={c.segment} aspect="4 / 3" disableHover priority={false} className="!border-[var(--border-subtle)]" />
+                       <CarMedia carId={c.id} type={c.type} segment={c.segment} car={c} aspect="4 / 3" disableHover priority={idx === 0} className="!border-[var(--border-subtle)]" />
                       </Link>
                     </td>
                     <td className="py-4 px-4">
@@ -410,11 +417,11 @@ export default function BrowseCars() {
 
           {/* Mobile cards */}
           <div className="md:hidden space-y-4">
-            {paginatedCars.map((c: CarInfo) => (
+            {paginatedCars.map((c: CarInfo, idx: number) => (
               <GlassCard key={c.id} className="p-4">
                 <Link to={`/car/${c.id}`} className="block">
                   <div className="mb-3">
-                    <CarMedia carId={c.id} type={c.type} segment={c.segment} aspect="16 / 9" priority={false} />
+                      <CarMedia carId={c.id} type={c.type} segment={c.segment} car={c} aspect="16 / 9" priority={idx === 0} />
                   </div>
                   <div className="flex justify-between items-start mb-3">
                     <div>

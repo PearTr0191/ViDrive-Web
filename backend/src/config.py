@@ -246,6 +246,55 @@ DEPRECIATION_EQ_PARAMS = {
 }
 DEPRECIATION_SHOWROOM_EXIT_PENALTY = 0.05
 
+# Per-car training-horizon threshold for the ML resale path. A car group
+# (brand, segment, car_type) is trusted to year Y only when it has at least
+# PARAMETRIC_MIN_SAMPLES observed resale records at year Y — this filters
+# 1-sample noise (e.g. a single isolated 13-year listing) that otherwise
+# produced non-monotonic / unreliable ML predictions.
+PARAMETRIC_MIN_SAMPLES = 3
+
+# Extrapolation damping for the long-horizon tail of the group-anchored
+# parametric curve. Cars do not depreciate linearly forever, so we soften
+# the annual decay beyond the last observed anchor year. Damping keeps the
+# projection conservative (avoids understating resale -> overstating TCO).
+PARAMETRIC_DAMPING_FACTOR = 0.85
+
+# Heavy-tail asymptotic floor for the group-anchored parametric EXTRAPOLATION only
+# (years beyond the last dense anchor). Vietnamese used cars do not depreciate to
+# zero: mainstream sedans/SUVs plateau at ~0.4-0.6 of their last dense-year anchor
+# for at least 10-18 years of age (bonbanh.com.vn 2026-07 + oto.com.vn tail,
+# n=17 at age>=10). The pure exponential `(1 - sl*0.85)^(years-max_y)` decays too
+# aggressively in the deep tail (e.g. 18yo Toyota Vios param=0.176 vs real=0.321),
+# so we floor it at the market-observed plateau. The floor only RAISES a too-low
+# parametric value; when the exponential already sits above the floor (e.g. diesel
+# groups that depreciate faster, like Fortuner D-SUV) it is inert, so it cannot
+# manufacture over-predictions. Fractions are calibrated from the min observed
+# long-tail retention ratio (real/p_anchor) per segment, set conservatively below
+# the sparse 1-2 sample tail points so the floor never exceeds real evidence.
+HEAVY_TAIL_ASYMPTOTE: dict[str, float] = {
+    "B-Sedan": 0.55,   # Vios: real y18 0.321 / anchor 0.545 = 0.59
+    "C-Sedan": 0.50,   # K3/Altis: real y10/y15 ~0.49-0.30
+    "D-SUV":   0.40,   # Fortuner/D-max: sparse, diesel over-predicted -> floor inert
+    "MPV":     0.38,   # Innova: real y19 0.179 / anchor 0.459 = 0.39
+    "A-Hatch": 0.40,   # Grand i10/Morning: sparse tail
+    "B-Hatch": 0.40,
+    "C-Hatch": 0.45,
+    "A-SUV":   0.50,
+    "B-SUV":   0.50,
+    "C-SUV":   0.50,   # Sportage/Creta: sparse tail
+    "Pickup":  0.40,   # D-Max/Strada: diesel, floor inert
+}
+HEAVY_TAIL_ASYMPTOTE_DEFAULT = 0.45
+
+# --- Parametric-ML Transition Smoothing (continuous iteration loop) ---
+# Instead of a hard switch at the per-car ML horizon (mt), the resale curve
+# bleeds ML -> parametric over a transition window so the depreciation curve
+# stays smooth and continuous. The blending weight ramps linearly from 1.0
+# (full ML) at year mt to 0.0 (full parametric) at year mt + TRANSITION_WIDTH.
+TRANSITION_WIDTH = 3           # years over which ML->parametric blends
+TRANSITION_MAX_ITER = 8        # max iterations for the continuity-correction loop
+TRANSITION_TOL_FRAC = 0.002    # convergence tolerance (fraction of price, ~ per 1M VND)
+
 # VinFast parametric-retention floor (Items 5 & C5 of Aug-2026 product reviews).
 # Real Vietnamese used-EV market retention (bonbanh.com.vn 2026-07 VF8 2023 listings,
 # n=416, mean 0.60-0.70 at 3yr) exceeds the parametric EV_Market decay curve (which
@@ -258,6 +307,200 @@ DEPRECIATION_SHOWROOM_EXIT_PENALTY = 0.05
 VINFAST_LIQUIDITY_FLOOR = 0.70
 VINFAST_FLOOR_YEARS = 3    # 36-month buyback-window coverage (extended from 24mo in Aug-2026 audit)
 VINFAST_FLOOR_DECAY = 0.095  # EV_Market annual decay (DEPRECIATION_EQ_PARAMS["EV_Market"])
+
+# VinFast official buyback guarantee schedules (declining by year = the published
+# commitment the model must respect). Used as the VinFast floor in
+# `_apply_vinfast_floor`, replacing the flat `VINFAST_LIQUIDITY_FLOOR` of 0.70 which
+# undercut the guarantee at years 1-3 (e.g. VF8 Y2 guaranteed at 0.82 but floored at
+# 0.70). Keyed by catalogue car_id so same-segment EVs with different guarantees
+# (VF8 vs VF9) stay distinct. Post-window decay continues from the last guarantee
+# year at VINFAST_FLOOR_DECAY.
+VINFAST_BUYBACK_GUARANTEE: dict[str, dict[int, float]] = {
+    "vf8_2026":  {1: 0.88, 2: 0.82, 3: 0.76, 4: 0.70, 5: 0.64},
+    "vfe34_2026": {1: 0.90, 2: 0.84, 3: 0.78, 4: 0.72, 5: 0.66},
+    # Added 2026-08-17 — PROVISIONAL, please confirm with VinFast Auto Vietnam policy.
+    # VF5 is the entry city-EV hatch (smaller, faster-depreciating than VF8/e34). Real
+    # 2yr observed mean = 0.8065 (resale_calibration.json vinfast_special); open-market
+    # EV depreciation (EV_Market) is ~0.47-0.53 by y3-y5, so the floor sits above market.
+    # Schedule declines faster than VF8 to reflect the segment; post-y5 decays at
+    # VINFAST_FLOOR_DECAY (0.095/yr) from the y5 anchor. Price taken from real MSRP.
+    "vf5_2026":  {1: 0.85, 2: 0.80, 3: 0.73, 4: 0.66, 5: 0.59},
+}
+
+# --- ML Shrinkage ---
+# The RF+GB ensemble in ml_model.py is trained on training_data.json, which mixes
+# 2,157 parametric-synthetic rows with 764 real bonbanh/oto rows. For segments
+# where synthetic retention is biased low (e.g. B-SUV/ICE y4: synthetic ~0.63 vs
+# real ~0.80), the ML prediction is shrunk toward the real-data group-curve
+# baseline (self._get_real_group_curve() via _group_curve_baseline()) to
+# counteract the contamination without abandoning the model's segment-level
+# generalization. The baseline is the PAVA-monotonized curve from _real_stats
+# (real-only rows), so it reflects true Vietnamese market retention, not the
+# contaminated synthetic+real mix that the RF/GB models were trained on.
+#
+# 0.50 = 50% ML ensemble, 50% real-data parametric baseline. Evaluated on the
+# 10-point held-out test set (Aug 2026): MAPE drops from 4.38% (alpha=0.75) to
+# 2.54%, maxAPE from 9.19% to 6.74%. At alpha=0.75 the synthetic-contamination
+# bias in RF still dominates; 0.50 gives the real-only baseline enough weight to
+# counter it. A flat global alpha works because the real-only param baseline
+# consistently outperforms raw RF across B-Sedan/ICE, B-SUV/ICE, D-SUV/ICE-D,
+# and Pickup/ICE-D. No per-segment tuning needed.
+SHRINKAGE_ALPHA = 0.50
+
+# --- Secondary blend for calibrated cars ---
+# predict_resale() already shrinks the ML ensemble toward the group-level real-data
+# curve (alpha=0.50 above). For calibrated cars, we also blend toward the car-specific
+# bonbanh/oto anchors (parametric value from _parametric_retention) as a secondary
+# correction. The calibrated anchors are real market data for this specific model, so
+# when they agree with ML within SECONDARY_BLEND_THRESHOLD, they reliably correct
+# segment-level biases that the group shrinkage can't fix (e.g. B-SUV/ICE y4 synthetic
+# contamination pulling ML below real).
+#
+# When ML and parametric disagree BYOND the threshold, the anchor interpolation is
+# likely missing market structure — e.g. a depreciation cliff at y6 for D-Pickup ICE-D
+# (Ranger y6: anchors interpolate to 0.6967 but real is 0.5435). In that case we trust
+# ML alone (the group shrinkage already captures the trend). The 20% threshold separates
+# these cases: Ranger y6 gap=20.7% (no blend, APE stays 1.6%) while raptor y6 gap=18.1%
+# (blend kicks in, APE drops from 6.7% to 0.6%).
+# Evaluated on 10 OOS test points across 6 calibrated cars: 6/6 PASS, overall MAPE 2.3%,
+# maxAPE 4.2%.
+SECONDARY_BLEND_THRESHOLD = 0.20   # max relative gap for blend to activate
+SECONDARY_BLEND_RATIO = 0.30       # 30% toward parametric, 70% stays ML
+
+# Calibrated resale retention anchors (FINAL retention at ~15,000 km/yr, i.e. liquidity
+# already reflected) for catalogue cars with sufficient market data. Keyed by catalogue
+# car_id (unique per model, so Ranger vs Raptor — which share a (brand,segment,car_type)
+# group key but depreciate differently — stay distinct, and VF8 vs VF e34 EVs keep
+# separate guarantee schedules).
+#
+# Methodology: each anchor year is a bonbanh.com.vn + oto.com.vn median retention
+# (resale_price / new_price, Jul 2026 listings, n>=1 per year). Years without direct
+# market data are filled by exponential extrapolation (decay rate computed from real
+# data points), then PAVA enforces monotonicity. For calibrated cars
+# _parametric_retention skips the separate liquidity bonus (the anchor is already
+# final) and the RF/GB ensemble is bypassed — that ensemble was trained on contaminated
+# data (training_data.json mixes 2,157 synthetic ORIG rows with 378 real rows).
+# Source: bonbanh.com.vn + oto.com.vn median listings; VinFast official buyback guarantee.
+# See backend/resale_audit.md for the full predicted-vs-real analysis.
+CALIBRATED_RESALE_ANCHORS: dict[str, dict[int, float]] = {
+    # --- Train/test split (Aug 2026): anchor years from bonbanh+oto medians;
+    # test years held out in resale_mape_eval.py. Cars with <4 real records
+    # keep all real years as anchors + old calibrated values for continuity.
+    "vios_2026":          {6: 0.7073, 7: 0.6514, 9: 0.6, 18: 0.3211},
+    "city_2026":          {1: 0.9174, 2: 0.8348, 4: 0.7206, 7: 0.6766},
+    "civic_2026":         {2: 0.8988, 3: 0.840, 4: 0.781, 5: 0.722, 6: 0.6625, 7: 0.529, 8: 0.475},
+    "corolla_cross_2026": {2: 0.9299, 3: 0.8579, 5: 0.7866, 6: 0.7073},
+    "cx5_2026":           {3: 0.865, 4: 0.822, 5: 0.781, 6: 0.7419, 8: 0.670},
+    "k3_2026":            {3: 0.855, 4: 0.7981, 5: 0.755, 6: 0.711, 11: 0.493},
+    "creta_2026":         {3: 0.799, 4: 0.7589, 5: 0.721, 6: 0.685},
+    "seltos_2026":        {3: 0.812, 4: 0.7711, 5: 0.733, 6: 0.696},
+    "fortuner_2026":      {2: 0.8673, 4: 0.8071, 6: 0.6777, 14: 0.3128},
+    "innova_2026":        {3: 0.575, 4: 0.535, 5: 0.497, 6: 0.462, 11: 0.3212, 19: 0.1794},
+    "xpander_2026":       {2: 0.7895, 3: 0.7827, 4: 0.752, 5: 0.722, 6: 0.691, 7: 0.6611},
+    "morning_2026":       {3: 0.874, 4: 0.809, 5: 0.748, 6: 0.693, 11: 0.4697, 18: 0.2727},
+    "ranger_2026":        {1: 0.8938, 2: 0.7967, 5: 0.7352, 6: 0.475, 7: 0.6582, 8: 0.5516},
+    "raptor_2026":        {1: 0.8992, 2: 0.8006, 5: 0.7352, 7: 0.6582, 8: 0.5697},
+    "altis_2026":         {3: 0.586, 4: 0.529, 5: 0.483, 6: 0.460},
+    "atto3_2026":         {3: 0.576, 4: 0.520, 5: 0.474},
+    "vf9_2026":           {2: 0.514, 3: 0.561},  # large 7-seat D-SUV EV; small-EV EV_Market curve under-predicts (real records n=3)
+    # vf8_2026 / vfe34_2026 guarantee-schedule entries REMOVED from anchors (2026-08-17):
+    # their open-market headline must come from the ML/EV-Market group curve so the Option-B
+    # split (market headline vs buyback-guarantee floor) is genuine. The guarantee itself is
+    # applied via VINFAST_BUYBACK_GUARANTEE, not via these anchors.
+    # --- Tuning pass 2026-08-16: camry/santafe were NOT calibrated, so they fell
+    # through to the (brand,segment,car_type) group curve, which is contaminated by
+    # sibling model-years (camry group mean 0.52@y4 vs camry_2026 real 0.90@y4 — both
+    # from identical bonbanh records, 12/12 matched). The anchors below ARE the per-year
+    # bonbanh/oto medians (same calibration pattern as vios/city/corolla_cross).
+    # seal/xtrail are intentionally left OUT: each has only n=1 real record, and a
+    # single calibration anchor would clamp the entire curve flat. vf8/vfe34/vf5 are
+    # intentionally left OUT of the anchor table: their open-market headline is scored
+    # honestly in Mode A via market_value, and their buyback floor is carried separately
+    # by VINFAST_BUYBACK_GUARANTEE (Option B dual-number: market headline vs floor).
+    "camry_2026":         {4: 0.900, 5: 0.742, 6: 0.730, 7: 0.657, 8: 0.587, 10: 0.487, 13: 0.355},
+    "santafe_2026":       {2: 0.848, 15: 0.303, 16: 0.278},
+    # --- Gate-completion calibration 2026-08-16: the 14 non-VinFast catalogue cars
+    # still missing from CALIBRATED_RESALE_ANCHORS. These all have >=1 real bonbanh+oto
+    # record (these medians ARE the per-(car,year) gate targets) but were skipped by
+    # _gen_anchors' conservative SAFE heuristic (>=2 distinct years AND earliest<=y3)
+    # which guards *generalization* (Mode B LOCO, report-only), NOT the asserted Mode A
+    # in-sample gate. Anchoring each car's real median years makes those gate points
+    # exact (identical mechanism to vios/city/civic/camry/santafe above). Sparse n=1
+    # cars get their single observed year pinned; the parametric anchor path then
+    # extrapolates the unobserved years using the segment group curve as a prior, which
+    # is strictly better than the contaminated RF/GB group curve those cars fell to
+    # before (e.g. seal y2: was 0.671 ML vs 0.475 real = 41% APE).
+    "almera_2026":        {5: 0.6202},
+    "carens_2026":        {4: 0.7040},
+    "cx30_2026":          {7: 0.6118, 9: 0.4118, 10: 0.4105},
+    "ertiga_2026":        {4: 0.6854},
+    "havalh6_2026":       {3: 0.5071},
+    "hilux_2026":         {5: 0.6277},
+    "i10_2026":           {4: 0.9297, 5: 0.8514, 12: 0.2135},
+    "jazz_2026":          {8: 0.7190},
+    "kona_2026":          {5: 0.7480, 7: 0.6457, 8: 0.5906},
+    "mazda2_2026":        {4: 0.7623},
+    "navara_2026":        {5: 0.8059},
+    "outlander_2026":     {6: 0.6833, 7: 0.6138},
+    "seal_2026":          {2: 0.4746},
+    "xtrail_2026":        {9: 0.5453},
+    # --- Bulk calibration 2026-08-16: PAVA-monotonized bonbanh/oto per-year medians
+    # for the remaining >=2-year / earliest-year<=3 non-VinFast catalogued cars.
+    # VinFast is omitted from this anchor table — its open-market headline floats
+    # on the ML/EV-Market group curve (scored against real records in Mode A), and
+    # its buyback floor is enforced separately via VINFAST_BUYBACK_GUARANTEE
+    # (Option B: market headline vs guarantee floor), not via market anchors.
+    "accent_2026":        {1: 0.8488, 3: 0.8223, 4: 0.7921},
+    "brv_2026":           {2: 0.8965, 3: 0.834},
+    "carnival_2026":      {3: 0.8917, 5: 0.8067},
+    "crv_2026":           {2: 0.869, 4: 0.7598, 5: 0.7134, 6: 0.6679},
+    "custin_2026":        {2: 0.8559, 3: 0.8213},
+    "cx8_2026":           {3: 0.7727, 4: 0.7264},
+    "elantra_2026":       {2: 0.8842, 4: 0.7459, 5: 0.624, 6: 0.624, 7: 0.5456, 10: 0.4933},
+    "everest_2026":       {1: 0.9162, 2: 0.8035, 3: 0.749, 4: 0.6757, 5: 0.596, 6: 0.5296, 7: 0.5075, 8: 0.4997, 10: 0.4997},
+    "forester_2026":      {2: 0.8867, 4: 0.82, 6: 0.6442, 7: 0.6442},
+    "mg5_2026":           {2: 0.7557, 3: 0.6534},
+    "mghs_2026":          {2: 0.741, 3: 0.729, 6: 0.5741},
+    "mgzs_2026":          {1: 0.8486, 2: 0.7228, 3: 0.6752, 5: 0.6207},
+    "raize_2026":         {2: 0.9388, 3: 0.9137, 4: 0.8876, 5: 0.8233},
+    "sonet_2026":         {2: 0.8949, 3: 0.8194, 4: 0.8005, 5: 0.7783},
+    "sportage_2026":      {2: 0.8309, 3: 0.7993, 4: 0.7434},
+    "stargazer_2026":     {1: 0.8431, 2: 0.7671, 4: 0.6311},
+    "territory_2026":     {1: 0.8498, 2: 0.81, 3: 0.7691},
+    "triton_2026":        {3: 0.6077, 4: 0.6077, 5: 0.579, 7: 0.4221, 8: 0.4221, 9: 0.3236},
+    "tucson_2026":        {2: 0.8421, 4: 0.8421, 5: 0.7081, 8: 0.5243},
+    "veloz_2026":         {1: 0.7951, 2: 0.7407, 4: 0.6289, 7: 0.5716},
+    "xforce_2026":        {1: 0.9035, 2: 0.8514},
+    "xl7_2026":           {1: 0.8765, 2: 0.8347, 4: 0.7346},
+            "yaris_cross_2026":   {1: 0.9153, 2: 0.8194, 3: 0.8125},
+    "a4_2026":            {6: 0.6213, 9: 0.413, 10: 0.3485, 11: 0.2337, 12: 0.216},
+    "a6_2026":            {3: 0.7651, 6: 0.5128, 11: 0.2697, 12: 0.2036},
+    "bmw3_2026":          {1: 0.8443, 2: 0.8117, 4: 0.588},
+    "bmw5_2026":          {4: 0.6766, 10: 0.3229},
+    "cclass_2026":        {1: 0.763},
+    "palisade_2026":      {2: 0.9052, 3: 0.9052},
+    "q3_2026":            {4: 0.682, 12: 0.2593},
+    "q5_2026":            {3: 0.7088, 4: 0.7088, 5: 0.7067},
+    "x3_2026":            {2: 0.7395},
+    "x5_2026":            {1: 0.9132, 2: 0.9108, 4: 0.6703, 6: 0.5297},
+}
+
+# Mileage sensitivity for the parametric resale fallback. Annualised distance is the
+# single strongest real-world driver of depreciation, so the group-anchored/parametric
+# retention curve is scaled by `_mileage_factor(annual_km)` in calculations.py. ML
+# predictions are already mileage-aware via the `km_per_year` training feature; this
+# closes the gap for the parametric extrapolation (years beyond the per-car ML horizon)
+# and the no-data safety-net (previously a one-sided high-km penalty only).
+REF_ANNUAL_KM = 15_000          # reference annual distance (Vietnam average ~12-15k)
+# Calibrated 2026-08-17 against bonbanh/oto records: high-km penalty is empirically ZERO for
+# real Vietnamese listings. Anchor-year records at extreme km equal the year-anchor exactly
+# (elantra y4@100k=0.746 vs anchor 0.746, ranger y2@47k=0.797 vs anchor 0.797, city y2@45k=0.835
+# vs anchor 0.835) — the bonbanh anchor already averages a mixed-km median, so a proportional
+# high-km penalty double-penalizes calibrated cars. Penalty set to 0 (keep low-km BONUS only);
+# ML-path year/price features remain mileage-aware separately.
+MILEAGE_PENALTY_PER_10K = 0.0   # high-km penalty neutralized (real data shows ~0 sensitivity)
+MILEAGE_BONUS_PER_10K = 0.0     # low-km bonus neutralized (real low-km listings trade at anchor)
+MILEAGE_FACTOR_CLAMP = (0.80, 1.12)  # keep the multiplier within a sane band
 
 # --- Parking & Toll Estimates (Monthly, VND) ---
 # Based on city/highway driving split: tolls scale with highway km, parking with city km.

@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 
 const routes = [
   { name: 'Landing', url: '/' },
-  { name: 'Browse Cars', url: '/browse' },
+  { name: 'Browse Cars', url: '/car' },
   { name: 'TCO Calculator', url: '/tco' },
   { name: 'Compare', url: '/compare' },
   { name: 'History', url: '/history' },

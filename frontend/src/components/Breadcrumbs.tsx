@@ -10,9 +10,8 @@ const segmentMap: Record<string, string> = {
   'loan': 'breadcrumb.loan',
   'wizard': 'breadcrumb.wizard',
   'history': 'breadcrumb.history',
-  'browse': 'breadcrumb.browse',
-  'methodology': 'breadcrumb.methodology',
   'car': 'breadcrumb.car',
+  'methodology': 'breadcrumb.methodology',
 }
 
 interface BreadcrumbItem {
@@ -53,7 +52,12 @@ export default function Breadcrumbs({ items }: BreadcrumbsProps) {
     let accumulated = ''
     for (const seg of segments) {
       accumulated += `/${seg}`
-      const key = segmentMap[seg]
+      let key: string | undefined
+      if (seg === 'car') {
+        key = carId ? segmentMap['car'] : 'breadcrumb.browse'
+      } else {
+        key = segmentMap[seg]
+      }
       if (key) {
         crumbs.push({ label: t(key), path: accumulated })
       }

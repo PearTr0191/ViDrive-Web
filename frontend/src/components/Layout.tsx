@@ -46,7 +46,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     { path: '/', labelKey: 'nav.home' },
     { path: '/tco', labelKey: 'nav.tco' },
     { path: '/compare', labelKey: 'nav.compare' },
-    { path: '/browse', labelKey: 'nav.browse' },
+    { path: '/car', labelKey: 'nav.browse' },
     { path: '/history', labelKey: 'nav.history' },
     { path: '/methodology', labelKey: 'nav.methodology' },
   ]

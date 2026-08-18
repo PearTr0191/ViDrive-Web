@@ -5,6 +5,7 @@ import { useSearchParams, Link } from 'react-router-dom'
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianGrid, LineChart, Line, Legend } from 'recharts'
 import { api, historyApi, formatVND, toTitleCase, configApi } from '../lib'
 import type { CarInfo, TcoResponse, YearlyBreakdownEntry } from '../lib'
+import { useSeoMetaSafe, JsonLd, breadcrumbLd, SITE_URL } from '../lib/seo'
 import AccentButton from '../components/AccentButton'
 import GlassCard from '../components/ui/GlassCard'
 import CostBars from '../components/CostBars'
@@ -104,8 +105,11 @@ function tcoInputsEqual(a: TcoInputSignature, b: TcoInputSignature): boolean {
   )
 }
 
+const isCustomCarId = (id: string): boolean => id.startsWith('custom-')
+
 export default function TcoCalculator() {
   const { t, locale } = useI18n()
+  useSeoMetaSafe({ title: `ViDrive - ${t('nav.tco')}`, description: t('page.tcoDescription') })
   const [searchParams] = useSearchParams()
   const phase1 = import.meta.env.VITE_COMPETITIVE_PHASE === '1'
   const variant = searchParams.get('v') ?? 'default'
@@ -137,6 +141,9 @@ export default function TcoCalculator() {
   const [loanRate, setLoanRate] = useState<number>(DEFAULTS.loanRate)
   const [loanTerm, setLoanTerm] = useState<number>(DEFAULTS.loanTerm)
   const [loanResult, setLoanResult] = useState<any>(null)
+  const [resaleWarning, setResaleWarning] = useState<string | null>(null)
+  const [mlMaxYear, setMlMaxYear] = useState<number | null>(null)
+  const [customCarWarning, setCustomCarWarning] = useState<string | null>(null)
   const queryClient = useQueryClient()
 
   const { data: cars, isError: isCarsError, refetch: refetchCars } = useQuery({ queryKey: ['cars'], queryFn: () => api.getCars(), retry: 1 })
@@ -224,10 +231,14 @@ export default function TcoCalculator() {
     : null
   const tcoParamsChanged = !!committedTcoInput && !tcoInputsEqual(committedTcoInput, currentTcoInput)
 
+  // A freshly picked car with no result yet (or a result from a different car)
+  // is a "new car" awaiting its first calculation.
+  const isNewCar = !result || result.car_id !== selectedCar
+
   // Label mirrors the button's action so the UI and keyboard shortcut always agree.
   const tcoPrimaryLabel = mutation.isPending
     ? t('tco.calculating')
-    : !result
+    : isNewCar
       ? t('tco.calculate')
       : tcoParamsChanged
         ? t('tco.recalculate')
@@ -257,9 +268,11 @@ export default function TcoCalculator() {
 
   // Verbose breakdown query — uses displayed* inputs so it does not refetch
   // as the form sliders move.
+  const displayedCarInfo = allCars.find(c => c.id === displayedCarId)
+  const displayedIsCustom = displayedCarId ? isCustomCarId(displayedCarId) : false
   const { data: breakdown } = useQuery({
     queryKey: ['tco-breakdown', displayedCarId, displayedCity, displayedKm, displayedYears, displayedRatio, rushHour],
-    queryFn: () => api.getBreakdown({ car_id: displayedCarId!, city: displayedCity, km: displayedKm, years: displayedYears, city_ratio: displayedRatio, rush_hour: rushHour }),
+    queryFn: () => api.getBreakdown({ car_id: displayedCarId!, car: displayedIsCustom ? displayedCarInfo : undefined, city: displayedCity, km: displayedKm, years: displayedYears, city_ratio: displayedRatio, rush_hour: rushHour }),
     enabled: !!selectedCar,
     staleTime: 60_000,
   })
@@ -279,14 +292,31 @@ export default function TcoCalculator() {
   // arrives.
   const { data: yearlyData, isInitialLoading: yearlyLoading } = useQuery({
     queryKey: ['tco-yearly', displayedCarId, displayedCity, displayedKm, displayedYears, displayedRatio, rushHour],
-    queryFn: () => api.getYearlyBreakdown({ car_id: displayedCarId!, city: displayedCity, km: displayedKm, years: displayedYears, city_ratio: displayedRatio, rush_hour: rushHour }),
+    queryFn: () => api.getYearlyBreakdown({ car_id: displayedCarId!, car: displayedIsCustom ? displayedCarInfo : undefined, city: displayedCity, km: displayedKm, years: displayedYears, city_ratio: displayedRatio, rush_hour: rushHour }),
     enabled: !!result && !!selectedCar,
     staleTime: 60_000,
   })
 
+  // Detect parametric fallback warnings from yearly data or main TCO result.
+  // Surface as a floating notification that auto-dismisses after 8 seconds.
+  useEffect(() => {
+    const allWarnings: string[] = []
+    if (yearlyData?.warnings) allWarnings.push(...yearlyData.warnings)
+    if (result?.result?.warnings) allWarnings.push(...result.result.warnings)
+
+    const hasFallback = allWarnings.includes('resale.fallbackToParametric')
+    if (hasFallback) {
+      const mlMaxYear = yearlyData?.ml_max_year ?? result?.result?.ml_max_year ?? displayedYears
+      setResaleWarning('resale.fallbackToParametric')
+      setMlMaxYear(mlMaxYear)
+      const timer = setTimeout(() => setResaleWarning(null), 5000)
+      return () => clearTimeout(timer)
+    }
+  }, [yearlyData?.warnings, result?.result?.warnings, yearlyData?.ml_max_year, result?.result?.ml_max_year])
+
   const handleCalculate = () => {
     if (!selectedCar) return
-    mutation.mutate({
+    const req: Parameters<typeof api.calculateTco>[0] = {
       car_id: selectedCar,
       city,
       km,
@@ -295,15 +325,32 @@ export default function TcoCalculator() {
       show_opp_cost: showOppCost,
       rush_hour: rushHour,
       include_insurance: includeInsurance,
-    })
+    }
+    if (isCustomCarId(selectedCar)) {
+      let customCarData = allCars.find(c => c.id === selectedCar)
+      // Fallback: deep-link auto-calc may fire before customCar state (loaded
+      // from sessionStorage) is populated. Read directly as a last resort.
+      if (!customCarData) {
+        try {
+          const stored = sessionStorage.getItem('vidrive-custom-car')
+          if (stored) {
+            const parsed: CarInfo = JSON.parse(stored)
+            if (parsed.id === selectedCar) customCarData = parsed
+          }
+        } catch { /* ignore parse errors */ }
+      }
+      if (customCarData) req.car = customCarData
+    }
+    mutation.mutate(req)
   }
 
   // Unified primary action: Reset when a result exists and nothing changed,
   // otherwise Calculate / Recalculate (same code path either way).
   const handleTcoPrimary = () => {
-    if (mutation.isPending) return
-    if (!selectedCar) return
-    if (result && !tcoParamsChanged) {
+    if (mutation.isPending || !selectedCar) return
+    // New car (no result yet, or a result from a different car) → Calculate.
+    // Same car, params unchanged → Reset. Otherwise → Recalculate.
+    if (result && result.car_id === selectedCar && !tcoParamsChanged) {
       handleReset()
     } else {
       handleCalculate()
@@ -325,6 +372,9 @@ export default function TcoCalculator() {
   const handleTcoPrimaryRef = useRef(handleTcoPrimary)
   handleTcoPrimaryRef.current = handleTcoPrimary
 
+  const handleCalculateRef = useRef(handleCalculate)
+  handleCalculateRef.current = handleCalculate
+
   useEffect(() => {
     registerShortcutHandlers({
       onCalculate: () => {
@@ -336,10 +386,12 @@ export default function TcoCalculator() {
   }, [])
 
 
-  // Restore a shared scenario from the URL (deep link) — auto-calculate on first mount.
+  // Deep-link auto-calc on first mount only. Picking a car in the UI now just
+  // sets `selectedCar` (per product decision); the user clicks Calculate. A
+  // `?car=xxx` deep link still computes immediately on load.
   useEffect(() => {
-    if (searchParams.get('car') && selectedCar) {
-      handleCalculate()
+    if (searchParams.get('car') && !result) {
+      handleCalculateRef.current()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -454,7 +506,32 @@ export default function TcoCalculator() {
     }
   }
 
-  const selectedCarInfo = cars?.find(c => c.id === selectedCar)
+   const selectedCarInfo = allCars.find(c => c.id === selectedCar)
+
+  // Surface a warning when a custom car is used, since ML depreciation is
+  // not available for custom cars — the parametric fallback is expected and
+  // correct, but the user should see a custom-car-specific message rather
+  // than the generic "year limit" parametric-fallback warning.
+  useEffect(() => {
+    if (isCustomCarId(selectedCar)) {
+      setCustomCarWarning('resale.customCarNoMl')
+      const timer = setTimeout(() => setCustomCarWarning(null), 5000)
+      return () => clearTimeout(timer)
+    } else {
+      setCustomCarWarning(null)
+    }
+  }, [selectedCar])
+
+  // Suppress the generic parametric-fallback warning when a custom car is
+  // selected — the custom-car warning above is more informative.
+  const showResaleWarning = resaleWarning && !isCustomCarId(displayedCarId)
+
+  // Car info for the image + heading is keyed off the *calculated* result, not
+  // the live selection. This keeps the car image and name in lock-step with the
+  // TCO numbers: selecting a new car no longer hot-reloads the image/name ahead
+  // of the (auto-triggered) recalculation — both update together when `result`
+  // resolves.
+  const resultCarInfo = cars?.find(c => c.id === result?.car_id)
 
   const sliderStyle = (val: number, min: number, max: number) => {
     const pct = ((val - min) / (max - min)) * 100
@@ -496,8 +573,24 @@ export default function TcoCalculator() {
     { label: t('tco.parkingTolls'), value: result.result.parking_toll.total_over_period },
   ] : []
 
-  const depreciationItems = result ? [
-    { label: t('tco.predictedResale'), value: result.result.resale, isNegative: true, ml: result.result.resale_logic === 'ml', showNote: true },
+  const depreciationItems: Array<{
+    label: string
+    value: number
+    isNegative?: boolean
+    ml?: boolean
+    parametric?: boolean
+    showNote?: boolean
+    guaranteeFloor?: boolean
+  }> = result ? [
+    { label: t('tco.predictedResale'), value: result.result.resale, isNegative: true, ml: result.result.resale_logic === 'ml', parametric: result.result.resale_logic !== 'ml', showNote: true },
+    // Option B (VinFast buyback): always disclose the RAW scheduled guarantee floor
+    // for VinFast cars (null for non-VinFast). The floor is a guaranteed minimum,
+    // not a resale forecast — the headline above is the expected open-market resale.
+    // Showing it unconditionally makes the floor visible even when it sits below
+    // the open-market estimate (previously hidden when guarantee_value == market).
+    ...(result.result.resale_guarantee_floor != null
+      ? [{ label: t('tco.guaranteeFloor'), value: result.result.resale_guarantee_floor, guaranteeFloor: true }]
+      : []),
     { label: t('tco.totalDepreciation'), value: result.result.depreciation },
   ] : []
 
@@ -529,10 +622,30 @@ export default function TcoCalculator() {
   // When the API returns yearlyData, use it directly (exact resale from ML/parametric model).
   // Fallback uses a generic y1_drop + annual_decay parametric curve.
   // Prepend a Y0 acquisition row so the chart starts at the purchase point.
-  const baseLineData: { year: string; resale: number; operating: number; cumulative: number }[] = yearlyData?.yearly
-    ? yearlyData.yearly.map((entry: YearlyBreakdownEntry) => ({
+    // VinFast buyback guarantee is a FIXED window. Detect its last guaranteed year
+    // from the raw floors: schedule ratios (0.914..1.0 for the 5-yr ramp; flat 1.0
+    // for the 3-yr liquidity floor) are all > the decay ratio 1-0.095=0.905, so the
+    // window ends at the first year whose floor-to-previous-floor ratio <= 0.905.
+    const rawFloors = (yearlyData?.yearly ?? []).map((e: YearlyBreakdownEntry) => e.resale_guarantee_value);
+    let vfWindowEnd = rawFloors.length;
+    for (let k = 1; k < rawFloors.length; k++) {
+      const cur = rawFloors[k], prev = rawFloors[k - 1];
+      if (cur != null && prev != null && prev > 0 && cur / prev <= 1 - 0.095 + 1e-9) { vfWindowEnd = k; break; }
+    }
+    const baseLineData: { year: string; resale: number; operating: number; cumulative: number; guarantee?: number | null }[] = yearlyData?.yearly
+    ? yearlyData.yearly.map((entry: YearlyBreakdownEntry, i) => ({
         year: entry.year_label,
-        resale: entry.resale,
+                resale: entry.resale,
+        // VinFast buyback guarantee is a FIXED window: the per-year floor is the guarantee
+        // ONLY inside it; past it (S10 post-window decay, config.py
+        // VINFAST_FLOOR_DECAY=0.095) there is no buyback promise, so the dashed floor
+        // line terminates at the window end and the green market-resale line continues
+        // (merge into the main line where support ends). vfWindowEnd (above) is the
+        // first post-window year; keep the floor only where i < vfWindowEnd.
+        guarantee:
+          entry.resale_guarantee_value != null && i < vfWindowEnd
+            ? entry.resale_guarantee_value
+            : null,
         operating: entry.operating_cumulative,
         cumulative: entry.cumulative_tco,
       }))
@@ -573,7 +686,7 @@ export default function TcoCalculator() {
       : []
 
   // Y0 = acquisition point: full car value, zero operating, net TCO = on_road - price
-  const lineData: { year: string; resale: number; operating: number; cumulative: number }[] = result
+    const lineData: { year: string; resale: number; operating: number; cumulative: number; guarantee?: number | null }[] = result
     ? [{
         year: 'Y0',
         resale: result.result.price,
@@ -582,8 +695,57 @@ export default function TcoCalculator() {
       }, ...baseLineData]
     : baseLineData
 
-  return (
+    return (
     <div className="space-y-4">
+      <JsonLd data={breadcrumbLd([
+        { name: t('nav.home'), url: SITE_URL },
+        { name: t('tco.title'), url: `${SITE_URL}/tco` },
+      ])} />
+      {/* Screen-reader page heading; visual title is in the GlassCard below */}
+      <h1 className="sr-only">{t('tco.title')}</h1>
+      {/* Floating warning notifications — surfaces when resale predictions
+          fall back to parametric modeling (years beyond ML training range)
+          for regular cars, or when a custom car is used (no ML data). */}
+      <AnimatePresence>
+        {showResaleWarning && (
+          <motion.div
+            className="fixed top-20 left-1/2 -translate-x-1/2 max-w-md px-4 py-2.5 rounded-lg bg-[rgba(var(--color-warning-rgb),0.1)] border border-[rgba(var(--color-warning-rgb),0.3)] text-[var(--color-warning)] text-sm font-medium z-50 shadow-lg"
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+          >
+            <div className="flex items-start gap-2">
+              <svg className="w-4 h-4 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5.5l7 12a1 1 0 01-.866 1.5H4.866a1 1 0 01-.866-1.5l7-12z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01" />
+              </svg>
+              <span>
+                {t('resale.fallbackToParametric', { maxYear: mlMaxYear ?? displayedYears })}
+              </span>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+      <AnimatePresence>
+        {customCarWarning && (
+          <motion.div
+            className="fixed top-20 left-1/2 -translate-x-1/2 max-w-md px-4 py-2.5 rounded-lg bg-[rgba(var(--color-warning-rgb),0.1)] border border-[rgba(var(--color-warning-rgb),0.3)] text-[var(--color-warning)] text-sm font-medium z-50 shadow-lg"
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+          >
+            <div className="flex items-start gap-2">
+              <svg className="w-4 h-4 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5.5l7 12a1 1 0 01-.866 1.5H4.866a1 1 0 01-.866-1.5l7-12z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01" />
+              </svg>
+              <span>
+                {t('resale.customCarNoMl')}
+              </span>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
       <div className="grid lg:grid-cols-3 gap-4">
         {/* Inputs */}
         <div className="lg:col-span-1 space-y-3">
@@ -605,7 +767,7 @@ export default function TcoCalculator() {
                 id="tco-city"
                 value={city}
                 onChange={(e) => setCity(e.target.value)}
-                                className="w-full px-4 py-3 bg-[rgba(var(--bg-base-rgb),0.5)] border border-[var(--border-default)] rounded-xl text-[var(--text-primary)] focus:outline-none focus:border-accent/50 transition-colors"
+                                className="w-full px-4 py-3 bg-[rgba(var(--bg-base-rgb),0.5)] border border-[var(--border-default)] rounded-xl text-[var(--text-primary)] focus:outline-none focus:border-accent/50 focus:ring-2 focus:ring-accent/50 transition-colors"
                 aria-label={t('tco.city')}
               >
                 {cities?.map(c => (
@@ -800,28 +962,29 @@ export default function TcoCalculator() {
 {/* Car Image + Summary side by side */}
                 <div className="flex flex-col md:flex-row gap-2 items-center">
                    {/* Car Image - slimmer */}
-                   <div className="md:w-[20%]">
-                     {selectedCarInfo && (
-                       <GlassCard className="p-1">
-                         <CarMedia
-                           carId={selectedCarInfo.id}
-                           type={selectedCarInfo.type}
-                           segment={selectedCarInfo.segment}
-                           aspect="4 / 3"
-                           priority
-                           className="w-full h-full object-contain"
-                         />
-                      </GlassCard>
-                     )}
-                  </div>
+                    <div className="md:w-[20%]">
+                      {resultCarInfo && (
+                        <GlassCard className="p-1">
+                          <CarMedia
+                            carId={resultCarInfo.id}
+                            type={resultCarInfo.type}
+                            segment={resultCarInfo.segment}
+                            car={resultCarInfo}
+                            aspect="4 / 3"
+                            priority
+                            className="w-full h-full object-contain"
+                          />
+                       </GlassCard>
+                      )}
+                   </div>
 
                   {/* Summary Info - wider */}
                   <div className="md:w-[80%]">
                      <GlassCard glow className="p-2 pl-4">
                        <div className="flex justify-between items-center mb-3">
-                         <h2 className="text-base md:text-lg font-heading font-bold text-[var(--text-primary)] whitespace-nowrap ml-1">
-                           {selectedCarInfo?.brand} {selectedCarInfo?.model}
-                        </h2>
+                          <h2 className="text-base md:text-lg font-heading font-bold text-[var(--text-primary)] whitespace-nowrap ml-1">
+                            {resultCarInfo?.brand} {resultCarInfo?.model}
+                         </h2>
                            <div className="flex gap-2 items-center">
                              <DropdownMenu
                                trigger={
@@ -988,7 +1151,7 @@ export default function TcoCalculator() {
                            dot={{ r: 4, fill: 'var(--chart-operating)' }}
                            activeDot={{ r: 6 }}
                          />
-                      </LineChart>
+                      {result.result.resale_guarantee_floor != null && lineData.some((row) => row.guarantee != null) && (<Line type="monotone" dataKey="guarantee" name={t('tco.guaranteeFloor')} stroke="var(--chart-guarantee)" strokeWidth={2} strokeDasharray="6 4" dot={{ r: 3, fill: 'var(--chart-guarantee)' }} activeDot={{ r: 5 }} />)}</LineChart>
                     </ResponsiveContainer>
                       )}</div>
                      {/* Screen-reader accessible data table — visual chart conveys
@@ -999,7 +1162,7 @@ export default function TcoCalculator() {
                         <tr>
                           <th scope="col">{t('tco.years')}</th>
                           <th scope="col">{t('tco.carValueRetention')}</th>
-                          <th scope="col">{t('tco.operatingCumulative')}</th>
+                          <th scope="col">{t('tco.operatingCumulative')}</th>{result.result.resale_guarantee_floor != null && (<th scope="col">{t('tco.guaranteeFloor')}</th>)}
                        </tr>
                      </thead>
                       <tbody>
@@ -1007,7 +1170,7 @@ export default function TcoCalculator() {
                           <tr key={i}>
                             <th scope="row">{row.year}</th>
                             <td>{formatVND(row.resale)}</td>
-                            <td>{formatVND(row.operating)}</td>
+                            <td>{formatVND(row.operating)}</td>{result.result.resale_guarantee_floor != null && (<td>{row.guarantee != null ? formatVND(row.guarantee) : '—'}</td>)}
                          </tr>
                         ))}
                      </tbody>
@@ -1266,13 +1429,27 @@ export default function TcoCalculator() {
                           <div className="px-4 py-3 space-y-2 border-t border-[var(--border-subtle)]">
                             {depreciationItems.map((item, i) => (
                               <div key={i} className="flex justify-between items-start">
-                                <span className="text-sm text-[var(--text-secondary)]">
+                                <span className={item.guaranteeFloor ? 'text-sm text-[var(--text-muted)]' : 'text-sm text-[var(--text-secondary)]'}>
+                                  {item.guaranteeFloor && <span aria-hidden="true" className="mr-1">🔒</span>}
                                   {item.label}
+                                  {item.guaranteeFloor && (
+                                    <span className="block text-[10px] text-[var(--text-muted)] mt-1">
+                                      {result.result.resale_guarantee_floor != null && result.result.resale_guarantee_floor < result.result.resale
+                                        ? t('tco.guaranteeFloorBelowMarket')
+                                        : t('tco.guaranteeFloorCaption')}
+                                    </span>
+                                  )}
                                   {item.ml && (
                                     <span className="ml-1.5 inline-flex items-center gap-0.5 text-xs font-medium text-accent">
                                       <span className="w-1.5 h-1.5 rounded-full bg-accent" />
                                       {t('compare.mlBadge')}
-                                   </span>
+                                    </span>
+                                  )}
+                                  {item.parametric && !item.ml && (
+                                    <span className="ml-1.5 inline-flex items-center gap-0.5 text-xs font-medium text-[var(--text-muted)]">
+                                      <span className="w-1.5 h-1.5 rounded-full bg-[var(--text-muted)]" />
+                                      {t('compare.parametricBadge')}
+                                    </span>
                                   )}
                                   {item.ml && result.result.resale_spread != null && (
                                     <span className="block text-[10px] text-[var(--text-secondary)] mt-0.5">
@@ -1516,7 +1693,7 @@ export default function TcoCalculator() {
               <p className="text-[var(--text-muted)] text-sm">
                 {t('tco.carNotFoundTipPrefix')}{' '}
                 <Link
-                  to="/browse"
+                  to="/car"
                   className="text-accent font-medium hover:underline focus:outline-none focus:ring-2 focus:ring-accent/40 rounded"
                 >
                   {t('tco.carNotFoundTipLink')}

@@ -1,10 +1,16 @@
 import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { useI18n } from '../lib/i18n'
+import { useSeoMetaSafe } from '../lib/seo'
 import { CheckeredFlag } from '../components/AutomotivePatterns'
 
 export default function NotFound() {
   const { t } = useI18n()
+  useSeoMetaSafe({
+    title: `ViDrive - ${t('common.notFound')}`,
+    description: t('common.notFoundDesc'),
+    noindex: true,
+  })
 
   return (
     <div className="flex flex-col items-center justify-center min-h-[60vh] text-center">

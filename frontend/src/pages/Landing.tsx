@@ -5,14 +5,18 @@ import AccentButton from '../components/AccentButton'
 import GlassCard from '../components/ui/GlassCard'
 import AnimatedCounter from '../components/ui/AnimatedCounter'
 import Skeleton from '../components/ui/Skeleton'
-import { GrillePattern } from '../components/AutomotivePatterns'
+import { GridPattern } from '../components/AutomotivePatterns'
 import { api, formatVND } from '../lib'
 import { useI18n } from '../lib/i18n'
+import { useTheme } from '../lib/theme'
+import { useSeoMetaSafe, JsonLd, SITE_URL } from '../lib/seo'
 import { useQuery } from '@tanstack/react-query'
 import SocialProofLine from '../components/SocialProofLine'
 
 export default function Landing() {
-  const { t } = useI18n()
+  const { t, locale } = useI18n()
+  const { theme } = useTheme()
+  useSeoMetaSafe({ title: t('page.title'), description: t('landing.heroSubtitle') })
   const heroRef = useRef<HTMLElement>(null)
   const { scrollYProgress: heroScroll } = useScroll({
     target: heroRef,
@@ -21,6 +25,13 @@ export default function Landing() {
   const heroY = useTransform(heroScroll, [0, 1], [0, 40])
   const heroOpacity = useTransform(heroScroll, [0, 1], [1, 0.3])
   const heroScale = useTransform(heroScroll, [0, 1], [1, 0.98])
+
+  // NOTE: the hero <img> blends against the *page* backdrop via `mix-blend-mode`.
+  // An ancestor with an animated `opacity` (the old container fade) promoted that
+  // ancestor to its own compositing layer, so the blended image composited against an
+  // EMPTY/transparent buffer instead of the page — `multiply` then rendered invisible
+  // (light theme "fades away"); `screen` stayed visible (dark was perfect). The container
+  // is now a plain <div> (no opacity/will-change) so the blend reaches the real backdrop.
 
   const { data: config, isLoading: isConfigLoading } = useQuery({
     queryKey: ['config'],
@@ -38,7 +49,7 @@ export default function Landing() {
     { value: cars?.length || 0, suffix: '+', labelKey: 'landing.statCars' },
     { value: config?.supported_cities || 0, suffix: '', labelKey: 'landing.statCities' },
     { value: 25, suffix: '+', labelKey: 'landing.statML' },
-    { value: 5, suffix: 'Y', labelKey: 'landing.statRange', text: '5-30' },
+    { value: 5, suffix: 'Y', labelKey: 'landing.statRange', text: '1-20' },
   ]
 
   const steps = [
@@ -67,15 +78,97 @@ export default function Landing() {
 
   return (
     <div className="space-y-20">
+      {/* FAQPage + SoftwareApplication structured data */}
+      <JsonLd data={{
+        '@context': 'https://schema.org',
+        '@type': 'FAQPage',
+        inLanguage: locale,
+        mainEntity: [1, 2, 3, 4, 5, 6].map(n => ({
+          '@type': 'Question',
+          name: t(`landing.faqQ${n}`),
+          acceptedAnswer: {
+            '@type': 'Answer',
+            text: t(`landing.faqA${n}`),
+          },
+        })),
+      }} />
+      <JsonLd data={{
+        '@context': 'https://schema.org',
+        '@type': 'SoftwareApplication',
+        name: 'ViDrive',
+        url: SITE_URL,
+        applicationCategory: 'AutomotiveApplication',
+        operatingSystem: 'Web browser',
+        offers: {
+          '@type': 'Offer',
+          price: '0',
+          priceCurrency: 'VND',
+        },
+        inLanguage: locale,
+        }} />
       {/* Hero Section */}
-      <section ref={heroRef} className="relative min-h-[75vh] flex flex-col items-center justify-center text-center overflow-hidden py-16">
+      <section ref={heroRef} className="relative min-h-[82vh] flex flex-col items-center justify-center text-center overflow-hidden py-16">
+        {/* Lucid Air back-layer — theme-adaptive.
+            Light: dark line art on white via `multiply` — STATIC (appears instantly, no animation).
+            Dark: glowing teal on near-black via `screen` — FADES IN (headlights turning on) on load
+            and whenever the theme switches to dark.
+            Both sit at -z-20 behind the grid (-z-10) and content (z-10). Light is the positional reference;
+            the dark image gets a small extra downward nudge to match it.
+            CRITICAL: this wrapper stays a plain <div> with an OPAQUE `var(--bg-base)` background and NO
+            animated `opacity`/`will-change`/`transform`. An ancestor with animated opacity becomes its own
+            compositing layer, so the <img>'s `mix-blend-mode` composites against that layer's EMPTY/transparent
+            buffer instead of the page: `multiply` (light) then renders invisible — the old "fades away on hard
+            refresh" bug — while `screen` (dark) stays visible. The opaque wrapper bg keeps the blend correct.
+            The dark fade animates the <img>'s OWN opacity (a leaf node), which is blend-safe; only an
+            *ancestor* animated opacity caused the bug. */}
+        <div
+          className="absolute inset-0 -z-20 pointer-events-none"
+          aria-hidden="true"
+          style={{ backgroundColor: 'var(--bg-base)' }}
+        >
+          {/* Light — static (no fade) */}
+          <img
+            src="/hero/lucid-light.jpg"
+            alt=""
+            loading="eager"
+            decoding="async"
+            className="absolute inset-x-0 top-0 h-[75vh] w-full object-contain scale-x-[1.35] scale-y-[1.2] origin-bottom translate-y-[8%]"
+            style={{
+              opacity: theme === 'light' ? 0.12 : 0,
+              mixBlendMode: 'multiply',
+            }}
+          />
+          {/* Dark — fades in (headlights turning on) */}
+          <motion.img
+            src="/hero/lucid-dark.jpg"
+            alt=""
+            loading="eager"
+            decoding="async"
+            className="absolute inset-x-0 top-0 h-[75vh] w-full object-contain scale-x-[1.35] scale-y-[1.2] origin-bottom translate-y-[9%]"
+            style={{
+              mixBlendMode: 'screen',
+            }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: theme === 'dark' ? 0.2 : 0 }}
+            transition={{ duration: 0.9, ease: 'easeOut' }}
+          />
+          {/* Soft radial vignette to fade edges into the page bg */}
+          <div
+            className="absolute inset-0"
+            style={{
+              background:
+                'radial-gradient(ellipse at center, transparent 40%, var(--bg-base) 94%)',
+            }}
+          />
+        </div>
+
         {/* Parallax background elements */}
                 <motion.div
           className="absolute inset-0 -z-10"
           style={{ y: heroY, opacity: heroOpacity, scale: heroScale }}
         >
-          {/* Automotive grille pattern */}
-                    <GrillePattern opacity={0.04} />
+          {/* Subtle engineering grid behind the hero */}
+                    <GridPattern opacity={0.06} />
         </motion.div>
 
         <div className="relative z-10 max-w-4xl mx-auto px-6 flex flex-col items-center">
@@ -326,7 +419,7 @@ export default function Landing() {
               <Link to="/tco">
                 <AccentButton size="lg">{t('landing.ctaCalculate')}</AccentButton>
               </Link>
-              <Link to="/browse">
+              <Link to="/car">
                 <AccentButton variant="outline" size="lg">{t('nav.browse')}</AccentButton>
               </Link>
           </motion.div>

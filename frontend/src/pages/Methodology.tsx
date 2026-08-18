@@ -5,6 +5,7 @@ import GlassCard from '../components/ui/GlassCard'
 import AccentButton from '../components/AccentButton'
 import ErrorBoundary from '../components/ErrorBoundary'
 import { useI18n } from '../lib/i18n'
+import { useSeoMetaSafe } from '../lib/seo'
 import { configApi, formatVND, type AssumptionsResponse, type AssumptionItem } from '../lib/api'
 import { useConfigEditor, buildChangeKey, type ChangeRecord, type SubmitState } from '../hooks/useConfigEditor'
 import { CheckeredFlag } from '../components/AutomotivePatterns'
@@ -50,6 +51,18 @@ const sections: SectionDef[] = [
     key: 'vinfastLiquidityFloor',
     icon: 'depreciation' as keyof typeof iconMap,
     descKey: 'resale.vinfastLiquidityFloor',
+    proseOnly: true,
+  },
+  {
+    key: 'resaleConfidence',
+    icon: 'depreciation' as keyof typeof iconMap,
+    descKey: 'methodology.resaleConfidenceDesc',
+    proseOnly: true,
+  },
+  {
+    key: 'germanLuxuryData',
+    icon: 'depreciation' as keyof typeof iconMap,
+    descKey: 'methodology.germanLuxuryData',
     proseOnly: true,
   },
 ]
@@ -374,6 +387,7 @@ function SubmitBar({ t, changeCount, author, onAuthorChange, submitState, onSubm
 
 export default function Methodology() {
   const { t, locale } = useI18n()
+  useSeoMetaSafe({ title: `ViDrive - ${t('nav.methodology')}` })
   const prefersReduced = useReducedMotion()
   const [showFormulas, setShowFormulas] = useState(false)
   const [showAssumptions, setShowAssumptions] = useState(false)

@@ -4,6 +4,7 @@ import { motion, AnimatePresence, useReducedMotion } from 'framer-motion'
 import { api, historyApi, formatVND, stripDiacritics, toTitleCase } from '../lib'
 import type { CarInfo } from '../lib'
 import { registerShortcutHandlers, unregisterShortcutHandlers } from '../hooks/useGlobalShortcuts'
+import { useSeoMetaSafe } from '../lib/seo'
 import AccentButton from '../components/AccentButton'
 import GlassCard from '../components/ui/GlassCard'
 import Skeleton from '../components/ui/Skeleton'
@@ -36,6 +37,7 @@ interface HistoryEntry {
 
 export default function History() {
   const { t, locale } = useI18n()
+  useSeoMetaSafe({ title: `ViDrive - ${t('nav.history')}`, description: t('page.historyDescription') })
   const queryClient = useQueryClient()
   const prefersReduced = useReducedMotion()
   const [searchTerm, setSearchTerm] = useState('')
@@ -199,6 +201,7 @@ export default function History() {
 
   return (
     <div className="space-y-8">
+      <h1 className="sr-only">{t('history.title')}</h1>
       <div className="flex gap-3 items-center">
         <div className="flex-1">
           <GlassCard className="p-4">

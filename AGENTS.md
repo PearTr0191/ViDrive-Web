@@ -42,7 +42,7 @@
 - [x] **Float precision (fixed Aug 7)**: Backend returns rounded integers for all monetary values (no more `142798950.00000003`)
 - [x] **NeonWireframeCar bgColor (fixed Aug 5)**: brake indicators corrected for both light/dark modes
 - [x] **Compare emptyState (fixed Aug 7)**: EN wording aligned with VI: "Select at least 2 cars to compare."
-- [x] **Landing hero stats (fixed Aug 7)**: Now wired to live API: cars count from `/api/cars` (70), cities from `/api/config` (33 supported_cities), ML stat "25+", forecast range "5-30"
+- [x] **Landing hero stats (fixed Aug 7)**: Now wired to live API:   cars count from `/api/cars` (82), cities from `/api/config` (33 supported_cities), ML stat "25+", forecast range "5-30"
 - [x] **Wizard "Mẫu xe" default (fixed Aug 7)**: Changed from literal "Custom" to empty string `''` — shows placeholder text instead
 - [x] **TCO chart YAxis "0.1B" overflow (fixed Aug 7)**: tickFormatter now uses "100M" for sub-billion values, "1.5B" for billion+
 - [x] **Plate fee Da Nang/Hue/Can Tho/Hai Phong overcharge (fixed Aug 7)**: Split AREA1 into metro (Hanoi+HCMC: 14M VND) and non-metro (Da Nang/Hue/Can Tho/Hai Phong: 140K) per Thông tư 155/2025

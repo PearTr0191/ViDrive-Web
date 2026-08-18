@@ -1,0 +1,13 @@
+User-agent: *
+Allow: /
+
+# User-specific pages — not indexable
+Disallow: /history
+
+# Duplicate / thin surfaces
+Disallow: /?car=*
+Disallow: /tco?
+Disallow: /compare?
+Disallow: /*?*
+
+Sitemap: https://vidrive.app/sitemap.xml

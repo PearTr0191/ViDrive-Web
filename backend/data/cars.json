@@ -698,5 +698,135 @@
     "consumption": 10.75,
     "annual_maintenance": 15000000,
     "segment": "Pickup"
+  },
+  "glc_2026": {
+    "brand": "Mercedes-Benz",
+    "model": "GLC 200 4MATIC",
+    "price": 2299000000,
+    "type": "ICE",
+    "seats": 5,
+    "consumption": 8.5,
+    "annual_maintenance": 18000000,
+    "segment": "C-SUV"
+  },
+  "cclass_2026": {
+    "brand": "Mercedes-Benz",
+    "model": "C 200 Avantgarde",
+    "price": 1599000000,
+    "type": "ICE",
+    "seats": 5,
+    "consumption": 7.6,
+    "annual_maintenance": 15000000,
+    "segment": "C-Sedan"
+  },
+  "eclass_2026": {
+    "brand": "Mercedes-Benz",
+    "model": "E 200 Avantgarde",
+    "price": 2449000000,
+    "type": "ICE",
+    "seats": 5,
+    "consumption": 8.6,
+    "annual_maintenance": 18000000,
+    "segment": "D-Sedan"
+  },
+  "bmw3_2026": {
+    "brand": "BMW",
+    "model": "320i",
+    "price": 1699000000,
+    "type": "ICE",
+    "seats": 5,
+    "consumption": 7.5,
+    "annual_maintenance": 15000000,
+    "segment": "C-Sedan"
+  },
+  "bmw5_2026": {
+    "brand": "BMW",
+    "model": "520i",
+    "price": 1979000000,
+    "type": "ICE",
+    "seats": 5,
+    "consumption": 8.6,
+    "annual_maintenance": 18000000,
+    "segment": "D-Sedan"
+  },
+  "x3_2026": {
+    "brand": "BMW",
+    "model": "X3 20 xDrive",
+    "price": 2299000000,
+    "type": "ICE",
+    "seats": 5,
+    "consumption": 8.5,
+    "annual_maintenance": 18000000,
+    "segment": "C-SUV"
+  },
+  "x5_2026": {
+    "brand": "BMW",
+    "model": "X5 xDrive40i",
+    "price": 4160000000,
+    "type": "ICE",
+    "seats": 5,
+    "consumption": 10.5,
+    "annual_maintenance": 21000000,
+    "segment": "D-SUV"
+  },
+  "a4_2026": {
+    "brand": "Audi",
+    "model": "A4",
+    "price": 1690000000,
+    "type": "ICE",
+    "seats": 5,
+    "consumption": 7.6,
+    "annual_maintenance": 15000000,
+    "segment": "C-Sedan"
+  },
+  "a6_2026": {
+    "brand": "Audi",
+    "model": "A6",
+    "price": 2299000000,
+    "type": "ICE",
+    "seats": 5,
+    "consumption": 8.6,
+    "annual_maintenance": 18000000,
+    "segment": "D-Sedan"
+  },
+  "q3_2026": {
+    "brand": "Audi",
+    "model": "Q3",
+    "price": 1890000000,
+    "type": "ICE",
+    "seats": 5,
+    "consumption": 8.3,
+    "annual_maintenance": 18000000,
+    "segment": "C-SUV"
+  },
+  "q5_2026": {
+    "brand": "Audi",
+    "model": "Q5 Black Edition",
+    "price": 2390000000,
+    "type": "ICE",
+    "seats": 5,
+    "consumption": 9.0,
+    "annual_maintenance": 18000000,
+    "segment": "C-SUV"
+  },
+      "palisade_2026": {
+    "brand": "Hyundai",
+    "model": "Palisade Prestige",
+    "price": 1429000000,
+    "type": "ICE",
+    "seats": 7,
+    "consumption": 8.5,
+    "annual_maintenance": 15000000,
+    "segment": "D-SUV"
+  },
+  "wuling_mini_2026": {
+    "brand": "Wuling",
+    "model": "Mini EV",
+    "price": 197000000,
+    "type": "EV",
+    "seats": 4,
+    "consumption": 9.0,
+    "annual_maintenance": 1000000,
+    "segment": "EV-Mini"
   }
 }

@@ -1,9 +1,11 @@
 import { motion } from 'framer-motion'
 import { useI18n } from '../lib/i18n'
+import { useSeoMetaSafe } from '../lib/seo'
 import Breadcrumbs from '../components/Breadcrumbs'
 
 export default function Terms() {
   const { t } = useI18n()
+  useSeoMetaSafe({ title: `ViDrive - ${t('terms.title')}` })
   return (
     <div className="max-w-3xl mx-auto">
       <Breadcrumbs />

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { useInView } from 'framer-motion'
+import { useInView, useReducedMotion } from 'framer-motion'
 
 interface AnimatedCounterProps {
   value: number
@@ -22,10 +22,17 @@ export default function AnimatedCounter({
 }: AnimatedCounterProps) {
   const ref = useRef<HTMLSpanElement>(null)
   const isInView = useInView(ref, { once: true, margin: '-50px' })
+  const prefersReduced = useReducedMotion()
   const [displayValue, setDisplayValue] = useState(0)
 
   useEffect(() => {
     if (!isInView) return
+
+    // Reduced motion: skip the rAF count-up and show the final value.
+    if (prefersReduced) {
+      setDisplayValue(value)
+      return
+    }
 
     let startTime: number | null = null
     let rafId: number
@@ -48,7 +55,7 @@ export default function AnimatedCounter({
   }, [isInView, value, duration])
 
   // When decimals === 0, fractional values are rounded to the nearest integer
-  // via Math.round(). This is intentional for stat counters (e.g., "70+ cars").
+  // via Math.round(). This is intentional for stat counters (e.g., "83+ cars").
   // For precise values, pass decimals > 0 to use toFixed() instead.
   const formatValue = (val: number): string => {
     if (decimals > 0) {

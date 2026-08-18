@@ -1,8 +1,10 @@
 import { Routes, Route } from 'react-router-dom'
 import { useEffect, useState } from 'react'
+import { useHead } from '@unhead/react'
 import Layout from './components/Layout'
 import ErrorBoundary from './components/ErrorBoundary'
 import { useI18n } from './lib/i18n'
+import { JsonLd, SITE_URL } from './lib/seo'
 import Landing from './pages/Landing'
 import TcoCalculator from './pages/TcoCalculator'
 import Compare from './pages/Compare'
@@ -65,7 +67,7 @@ function App() {
           <Route path="/tco" element={<TcoCalculator />} />
           <Route path="/compare" element={<Compare />} />
           <Route path="/wizard" element={<Wizard />} />
-          <Route path="/browse" element={<BrowseCars />} />
+          <Route path="/car" element={<BrowseCars />} />
           <Route path="/history" element={<History />} />
           <Route path="/methodology" element={<Methodology />} />
           <Route path="/terms" element={<Terms />} />
@@ -96,6 +98,27 @@ function GlobalOverlays() {
 export default function RootApp() {
   return (
     <>
+      {/* Global structured data — Organization + WebSite */}
+      <JsonLd data={{
+        '@context': 'https://schema.org',
+        '@type': 'Organization',
+        name: 'ViDrive',
+        url: SITE_URL,
+        sameAs: [],
+        logo: `${SITE_URL}/favicon-light.svg`,
+      }} />
+      <JsonLd data={{
+        '@context': 'https://schema.org',
+        '@type': 'WebSite',
+        name: 'ViDrive',
+        url: SITE_URL,
+        inLanguage: 'vi',
+        potentialAction: {
+          '@type': 'SearchAction',
+          target: `${SITE_URL}/car/{search_term_string}`,
+          'query-input': 'required name=search_term_string',
+        },
+      }} />
       <App />
       <GlobalOverlays />
     </>

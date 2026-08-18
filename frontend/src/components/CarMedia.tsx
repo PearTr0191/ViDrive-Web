@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react'
 import NeonWireframeCar from './NeonWireframeCar'
 import { mapSegment } from './segmentUtils'
+import { carDisplayName } from '../lib/seo'
 
 
 export interface CarMediaProps {
@@ -18,6 +19,8 @@ export interface CarMediaProps {
   disableHover?: boolean
   /** Current theme for fallback styling. */
   theme?: 'dark' | 'light'
+  /** Optional car data for alt text (brand + model). */
+  car?: { brand?: string; model?: string; id?: string }
 }
 
 // Resolve the static asset URL for a car image. Vite serves /public as root,
@@ -36,10 +39,12 @@ export default function CarMedia({
   onClick,
   disableHover = false,
   theme = 'dark',
+  car,
 }: CarMediaProps) {
   const [failed, setFailed] = useState(false)
   const url = useMemo(() => carImageUrl(carId), [carId])
   const segKey = mapSegment(type, segment)
+  const altText = `${carDisplayName(car ?? { id: carId })} right-side profile`
 
   const baseStyle: React.CSSProperties = aspect ? { aspectRatio: aspect } : {}
 
@@ -75,12 +80,12 @@ export default function CarMedia({
     >
       <img
         src={url}
-        alt={`${carId} right-side profile`}
+        alt={altText}
         loading={priority ? 'eager' : 'lazy'}
         fetchPriority={priority ? 'high' : 'low'}
         decoding="async"
         onError={() => setFailed(true)}
-        className={`absolute inset-0 h-full w-full object-contain p-2 transition-transform duration-500 ${disableHover ? '' : 'group-hover:scale-105'}`}
+        className={`absolute inset-0 h-full w-full object-contain p-2 transition-transform duration-200 ${disableHover ? '' : 'group-hover:scale-105'}`}
       />
       {/* Accent glow ring on hover (kept subtle so textual content dominates) */}
       <div

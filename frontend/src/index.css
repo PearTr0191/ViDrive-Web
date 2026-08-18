@@ -39,6 +39,10 @@
   --danger: #E74C3C;
   --danger-rgb: 231, 76, 60;
 
+  /* Warning - amber for long-term forecast disclosures */
+  --color-warning: #FFD93D;
+  --color-warning-rgb: 255, 217, 61;
+
   /* Success - green for positive deltas (AA on dark bg) */
   --success: #34d399;
   --success-rgb: 52, 211, 153;
@@ -52,7 +56,11 @@
   --chart-6: #FFEAA7;
   --chart-7: #DDA0DD;
   --chart-8: #F38181;
-  --chart-operating: #FF6B6B;
+    --chart-operating: #FF6B6B;
+    /* VinFast buyback guarantee floor — fainter green (same hue as the resale
+     line at ~53% opacity) so it merges into the resale line where the floor
+     stops binding, only standing clear where the guarantee is the floor. */
+  --chart-guarantee: #00FFBD88;
 
   /* Slider */
   --slider-track: #2D2D3D;
@@ -60,6 +68,13 @@
 
   /* Scrollbar */
   --scrollbar-width: 56px;
+
+  /* Typography — size-specific tracking + leading tokens */
+  --tracking-tight: -0.02em;
+  --tracking-normal: 0;
+  --tracking-wider: 0.04em;
+  --leading-display: 1.1;
+  --leading-body: 1.5;
 
   /* Tachometer scroll */
   --tachometer-thumb-bg: rgba(255, 255, 255, 0.08);
@@ -103,6 +118,10 @@
   --danger: #9B2226;
   --danger-rgb: 155, 34, 38;
 
+  /* Warning - amber for long-term forecast disclosures (AA on light bg) */
+  --color-warning: #92400E;
+  --color-warning-rgb: 146, 64, 14;
+
   /* Success - green for positive deltas (AA on light bg) */
   --success: #065f46;
   --success-rgb: 6, 95, 70;
@@ -116,7 +135,8 @@
   --chart-6: #E9A23B;
   --chart-7: #9D4EDD;
   --chart-8: #D65A6E;
-  --chart-operating: #E63946;
+    --chart-operating: #E63946;
+    --chart-guarantee: #00C853AA;
 
   --slider-track: #D8D6CC;
   --slider-fill: var(--accent);
@@ -141,7 +161,13 @@
     color: var(--text-primary);
     background-image: radial-gradient(ellipse at top, var(--bg-surface) 0%, transparent 70%);
     min-height: 100vh;
+    line-height: var(--leading-body);
     transition: background-color 0.4s ease, color 0.4s ease;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    line-height: var(--leading-display);
+    letter-spacing: var(--tracking-tight);
   }
 
   ::selection {
@@ -478,4 +504,45 @@
   /* G — force-open explainers on print; hide the <summary> toggles */
   details > summary { display: none !important; }
   details > :not(summary) { display: block !important; }
+}
+
+/* ─── Reduced Motion (a11y) ───────────────────────────────────────────────
+   Suppress all always-on CSS keyframe animations. JS-driven motion is
+   additionally guarded per-component via useReducedMotion(). A static
+   frame is the "gentler" reduced-motion equivalent (Apple protocol §14). */
+@media (prefers-reduced-motion: reduce) {
+  .skeleton,
+  .accent-gradient,
+  .metallic-shine::before,
+  .animate-spin,
+  .animate-pulse,
+  .reveal {
+    animation: none !important;
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+  .skeleton {
+    background: linear-gradient(90deg, var(--bg-surface) 25%, var(--bg-elevated) 50%, var(--bg-surface) 75%);
+  }
+  .reveal {
+    opacity: 1 !important;
+    transform: none !important;
+  }
+}
+
+/* ─── Reduced Transparency (a11y) ────────────────────────────────────────
+   Frost glass surfaces to near-solid when the user requests reduced
+   transparency (Apple protocol §14). */
+@media (prefers-reduced-transparency: reduce) {
+  :root, .light {
+    --glass-bg: rgba(var(--bg-base-rgb), 0.92);
+    --glass-blur: 0px;
+  }
+  .glass-card,
+  .glass-card-glow,
+  [class*="glass-card"] {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
 }

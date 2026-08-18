@@ -47,18 +47,19 @@ export default function CostBars({ onRoad, tco, labels, className = '' }: CostBa
         aria-hidden="true"
       >
         <motion.div
-          initial={prefersReduced ? false : { width: 0 }}
-          animate={{ width: '100%' }}
+          initial={prefersReduced ? false : { scaleX: 0 }}
+          animate={{ scaleX: 1 }}
           transition={{ duration: 0.6, ease: 'easeOut' }}
-          className="absolute inset-y-0 left-0 rounded-full"
-          style={{ background: 'rgba(var(--accent-rgb), 0.22)' }}
+          className="absolute inset-y-0 left-0 origin-left rounded-full"
+          style={{ width: '100%', background: 'rgba(var(--accent-rgb), 0.22)' }}
         />
         <motion.div
-          initial={prefersReduced ? false : { width: 0 }}
-          animate={{ width: `${tcoPct}%` }}
+          initial={prefersReduced ? false : { scaleX: 0 }}
+          animate={{ scaleX: 1 }}
           transition={{ duration: 0.6, ease: 'easeOut', delay: prefersReduced ? 0 : 0.15 }}
-          className="absolute inset-y-0 left-0 rounded-full"
+          className="absolute inset-y-0 left-0 origin-left rounded-full"
           style={{
+            width: `${tcoPct}%`,
             background: 'linear-gradient(90deg, var(--accent), var(--accent-cold))',
           }}
         />

@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
+import { AnimatePresence, motion } from 'framer-motion'
 
 interface DropdownMenuProps {
   trigger: ReactNode
@@ -56,15 +57,23 @@ export default function DropdownMenu({ trigger, children, className = '' }: Drop
       >
         {trigger}
       </div>
-      {open && coords && createPortal(
-        <div
-          ref={menuRef}
-          role="menu"
-          className="fixed z-[200] w-[200px] overflow-hidden rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] shadow-xl py-1"
-          style={{ top: coords.top, right: coords.right }}
-        >
-          {children}
-        </div>,
+      {createPortal(
+        <AnimatePresence>
+          {open && coords && (
+            <motion.div
+              ref={menuRef}
+              role="menu"
+              initial={{ opacity: 0, y: -8, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -8, scale: 0.95 }}
+              transition={{ duration: 0.15, ease: 'easeOut' }}
+              className="fixed z-[200] w-[200px] origin-top-right overflow-hidden rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] shadow-xl py-1"
+              style={{ top: coords.top, right: coords.right }}
+            >
+              {children}
+            </motion.div>
+          )}
+        </AnimatePresence>,
         document.body
       )}
     </>
