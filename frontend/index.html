@@ -8,6 +8,9 @@
          every theme change, with a cache-busting query so Chromium repaints reliably. -->
     <link id="favicon" rel="icon" type="image/svg+xml" href="/favicon-light.svg" />
     <link rel="apple-touch-icon" href="/favicon-light.svg" />
+    <!-- Preload hero back-layer images so the Landing car paints instantly (no load-induced pop). -->
+    <link rel="preload" as="image" href="/hero/lucid-light.jpg" />
+    <link rel="preload" as="image" href="/hero/lucid-dark.jpg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>ViDrive — Tính chi phí sở hữu ô tô</title>
     <meta name="description" content="Công cụ tính phí lăn bánh, khấu hao và chi phí vận hành xe ô tô tại Việt Nam. Minh bạch &amp; tức thì. Car TCO &amp; depreciation calculator.">

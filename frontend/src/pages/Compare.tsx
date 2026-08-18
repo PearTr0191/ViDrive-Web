@@ -377,7 +377,6 @@ export default function Compare() {
   }
 
   const isML = (r: TcoResult) => r.resale_logic === 'ml'
-  const isCustom = (r: TcoResult) => r.resale_logic === 'custom'
 
   return (
     <div className="space-y-8">

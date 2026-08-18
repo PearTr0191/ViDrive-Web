@@ -1,6 +1,5 @@
 import { Routes, Route } from 'react-router-dom'
 import { useEffect, useState } from 'react'
-import { useHead } from '@unhead/react'
 import Layout from './components/Layout'
 import ErrorBoundary from './components/ErrorBoundary'
 import { useI18n } from './lib/i18n'

@@ -122,3 +122,36 @@ Re-running `stress_resale_exhaustive.py` is unnecessary — the bump is resale-i
 - ✅ **German long-tail honesty flag added**: new `methodology.germanLuxuryData` prose section (EN+VI) + a `germanLuxuryData` block in `Methodology.tsx`, flagging the A4 ~23% sparse-year long tail as sparse-data, not a regression (aggregate 2.46% on the 427-record focused gate, within the 4% ceiling). Resale is invariant under the +3M German maint bump (`calculate_resale` never reads `annual_maintenance`; `bmw3_2026 y5 retention=0.528 value=897,112,776` identical pre/post bump).
 - ✅ **Scratch probes pruned**: `_bump_german_maint.py` / `_tco_probe.py` removed from `backend/data/models/` (the +3M German bump is live in `cars.json`; resale-invariance re-verified — `eval_german_palisade.py` MAPE=2.46% / maxAPE=22.88%, unchanged). `eval_german_palisade.py` retained as the focused gate.
 - If re-running the full gate: Mode B is file-safe (temp workdir + try/finally restore of the shipped `.pkl`); it never writes shipped `.pkl`/`config.py`/`training_data.json`. A crashed/aborted Mode B leaves shipped files INTACT (a fresh process reloads clean — verified).
+
+## Known Bugs (open, unfixed)
+
+### KB-001 — Light-theme hero back-layer fades/dims on scroll (unresolved, 2026-08-18)
+- **Symptom**: On the Landing page in **light** theme, the static hero back-layer image
+  (`/hero/lucid-light.jpg`, `mix-blend-mode: multiply`, opacity `0.12`) visibly **fades /
+  dims during scroll**, even though it is declared with `transition: none` and no framer
+  animation. Expected: fully static on load AND during scroll (light is the positional
+  reference frame).
+- **What was already tried (did not fix)**:
+  1. Split into separate light `<img>` (multiply, static) and dark `motion.img` (screen,
+     fade-in "headlights" on load / theme switch to dark — that fade is intentional/desired).
+  2. Removed the grid parallax (`useScroll`/`useTransform`/`heroOpacity`/`heroY`/`heroScale`)
+     — grid is now a plain `<div>` (no framer motion) so its layer is not composited/promoted.
+  3. `Layout.tsx` home route renders a plain `<main>` (no `motion.main`) so there is no
+     animated ancestor of the hero.
+  - User confirmed that removing only `opacity` (keeping grid `y`/`scale`) did NOT fix it,
+    which pointed at transform-promotion as a cause too — hence the full grid static. Still
+    fails after all of the above.
+- **Root cause**: UNKNOWN. Strongly suspected to be a compositing/blend interaction in the
+  hero stacking context — i.e. some element that becomes its own composited layer during
+  scroll repaint destabilizes the `multiply` blend of the light `<img>`, causing it to dim.
+  Candidate remaining suspects (NOT yet investigated):
+  - `frontend/src/index.css:165` `body { transition: background-color 0.4s, color 0.4s }`
+    — could shift the blend backdrop during scroll repaint.
+  - `VerticalScrollbar.tsx` / `TachometerScroll.tsx` scroll listeners repainting the hero.
+  - Any other transformed/composited ancestor of the hero.
+- **Acceptance / fix criteria**: Light hero back-layer must remain at constant visible
+  opacity (no fade/dim) on load AND through the entire scroll range. Dark hero may keep its
+  fade-in "headlights" behavior (load + theme switch to dark); that is intended.
+- **Status**: OPEN. Flagged as known bug; not blocking any shipped feature. Deferred.
+- **Files touched so far**: `frontend/src/pages/Landing.tsx` (hero ~110–184),
+  `frontend/src/components/Layout.tsx:238`.

@@ -1,4 +1,4 @@
-import { useSeoMeta, useHead, type UseSeoMetaInput } from '@unhead/react'
+import { useSeoMeta, useHead } from '@unhead/react'
 import { type ReactNode } from 'react'
 import { useLocation } from 'react-router-dom'
 import { useI18n } from './i18n'
@@ -10,11 +10,14 @@ const DEFAULT_DESCRIPTION =
   'Compare EVs, hybrids, and ICE vehicles across Vietnamese cities. ' +
   'Estimate depreciation, fuel, maintenance, registration, and financing.'
 
-export interface SeoMetaInput extends UseSeoMetaInput {
+export interface SeoMetaInput {
+  title?: string
+  description?: string
   canonical?: string
   noindex?: boolean
   ogImage?: string
   ogImageAlt?: string
+  [key: string]: unknown
 }
 
 /**
@@ -29,26 +32,28 @@ export function useSeoMetaSafe(meta: SeoMetaInput): void {
 
   const resolvedTitle = t('page.title')
   const resolvedDesc = t('page.description')
-  // t() returns the key itself when missing, so detect that and fall back
   const title = meta.title ?? (resolvedTitle === 'page.title' ? SITE_NAME : resolvedTitle)
   const description =
     meta.description ?? (resolvedDesc === 'page.description' ? DEFAULT_DESCRIPTION : resolvedDesc)
   const canonicalPath = meta.canonical ?? location.pathname
+  const canonicalUrl = `${SITE_URL}${canonicalPath}`
 
-  // @ts-expect-error -- useSeoMeta accepts a broad input; we normalize here
   useSeoMeta({
     title: String(title),
     description: String(description),
     ogTitle: String(title),
     ogDescription: String(description),
     ogSiteName: SITE_NAME,
-    ogUrl: `${SITE_URL}${canonicalPath}`,
+    ogUrl: canonicalUrl,
     ogLocale: locale === 'vi' ? 'vi_VN' : 'en_US',
     twitterCard: 'summary_large_image',
-    canonical: `${SITE_URL}${canonicalPath}`,
     ...(meta.ogImage ? { ogImage: meta.ogImage, twitterImage: meta.ogImage } : {}),
     ...(meta.ogImageAlt ? { ogImageAlt: meta.ogImageAlt } : {}),
     ...(meta.noindex ? { robots: 'noindex,nofollow' } : {}),
+  } as Record<string, unknown>)
+
+  useHead({
+    link: [{ rel: 'canonical', href: canonicalUrl }],
   })
 }
 
@@ -61,7 +66,7 @@ export function JsonLd({ data }: { data: Record<string, unknown> }): ReactNode {
     script: [
       {
         type: 'application/ld+json',
-        children: JSON.stringify(data),
+        textContent: JSON.stringify(data),
       },
     ],
   })

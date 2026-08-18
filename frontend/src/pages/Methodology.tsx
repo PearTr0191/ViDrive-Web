@@ -29,7 +29,15 @@ type SectionDef = {
   titleKey?: string
   descKey?: string
   proseOnly?: boolean
+  supMarker?: string
 }
+
+// Footnote-style explainers rendered at the bottom of the sections, tied to the
+// `*` annotation on the Depreciation card.
+const footnoteKeys = [
+  'methodology.resaleConfidenceDesc',
+  'methodology.germanLuxuryData',
+]
 
 const sections: SectionDef[] = [
   { key: 'overview', icon: 'overview' as keyof typeof iconMap },
@@ -37,7 +45,7 @@ const sections: SectionDef[] = [
   { key: 'registration', icon: 'registration' as keyof typeof iconMap },
   { key: 'maintenance', icon: 'maintenance' as keyof typeof iconMap },
   { key: 'insurance', icon: 'insurance' as keyof typeof iconMap },
-  { key: 'depreciation', icon: 'depreciation' as keyof typeof iconMap },
+  { key: 'depreciation', icon: 'depreciation' as keyof typeof iconMap, supMarker: '*' },
   { key: 'roadTax', icon: 'roadTax' as keyof typeof iconMap },
   { key: 'loanCosts', icon: 'loanCosts' as keyof typeof iconMap },
   { key: 'disclaimer', icon: 'disclaimer' as keyof typeof iconMap },
@@ -51,18 +59,6 @@ const sections: SectionDef[] = [
     key: 'vinfastLiquidityFloor',
     icon: 'depreciation' as keyof typeof iconMap,
     descKey: 'resale.vinfastLiquidityFloor',
-    proseOnly: true,
-  },
-  {
-    key: 'resaleConfidence',
-    icon: 'depreciation' as keyof typeof iconMap,
-    descKey: 'methodology.resaleConfidenceDesc',
-    proseOnly: true,
-  },
-  {
-    key: 'germanLuxuryData',
-    icon: 'depreciation' as keyof typeof iconMap,
-    descKey: 'methodology.germanLuxuryData',
     proseOnly: true,
   },
 ]
@@ -633,6 +629,14 @@ export default function Methodology() {
                   {!section.proseOnly && (
                     <h2 className="text-xl md:text-2xl font-heading font-semibold text-[var(--text-primary)] mb-3">
                       {t(section.titleKey ?? `methodology.${section.key}`)}
+                      {section.supMarker && (
+                        <sup
+                          className="text-accent ml-0.5 text-sm align-super font-semibold"
+                          aria-hidden="true"
+                        >
+                          {section.supMarker}
+                        </sup>
+                      )}
                     </h2>
                   )}
                   <p className="text-[var(--text-primary)]/80 leading-relaxed text-base md:text-lg text-justify">
@@ -691,6 +695,24 @@ export default function Methodology() {
             </GlassCard>
           )
         })}
+
+        {/* Footnotes — book/research-paper style explanatory notes tied to the
+            `*` annotation on the Depreciation card. */}
+        {footnoteKeys.length > 0 && (
+          <div className="mt-6 pt-4 border-t border-[var(--border-subtle)] space-y-3">
+            {footnoteKeys.map((key) => (
+              <div
+                key={key}
+                className="flex gap-2 text-sm text-[var(--text-secondary)] leading-relaxed text-justify"
+              >
+                <span className="text-accent font-semibold select-none" aria-hidden="true">
+                  *
+                </span>
+                <p>{t(key)}</p>
+              </div>
+            ))}
+          </div>
+        )}
       </motion.div>
     </div>
   )

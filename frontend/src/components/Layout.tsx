@@ -231,19 +231,28 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         </AnimatePresence>
       </header>
 
-      {/* Main content with page transitions */}
-      <motion.main
-        key={location.pathname}
-        initial={prefersReduced ? undefined : { opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        exit={prefersReduced ? undefined : { opacity: 0, y: -8 }}
-        transition={prefersReduced ? { duration: 0 } : { duration: 0.35, ease: [0.33, 1, 0.68, 1] }}
-        className="container mx-auto px-6 py-12 relative z-10"
-        id="main-content"
-      >
-        {location.pathname !== '/' && <Breadcrumbs />}
-        {children}
-      </motion.main>
+      {/* Main content.
+          The home route (`/`) renders a PLAIN <main> with NO framer-motion wrapper, so the
+          Lucid hero back-layer has no animated ancestor and the light image is genuinely static
+          (no page-transition fade-in). Inner routes keep the subtle fade+slide transition. */}
+      {location.pathname === '/' ? (
+        <main className="container mx-auto px-6 py-12 relative z-10" id="main-content">
+          {children}
+        </main>
+      ) : (
+        <motion.main
+          key={location.pathname}
+          initial={prefersReduced ? undefined : { opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={prefersReduced ? undefined : { opacity: 0, y: -8 }}
+          transition={prefersReduced ? { duration: 0 } : { duration: 0.35, ease: [0.33, 1, 0.68, 1] }}
+          className="container mx-auto px-6 py-12 relative z-10"
+          id="main-content"
+        >
+          <Breadcrumbs />
+          {children}
+        </motion.main>
+      )}
 
       {/* Footer */}
       <Footer />

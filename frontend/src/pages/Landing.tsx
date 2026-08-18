@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { motion, useScroll, useTransform } from 'framer-motion'
+import { motion } from 'framer-motion'
 import { useRef } from 'react'
 import AccentButton from '../components/AccentButton'
 import GlassCard from '../components/ui/GlassCard'
@@ -18,13 +18,6 @@ export default function Landing() {
   const { theme } = useTheme()
   useSeoMetaSafe({ title: t('page.title'), description: t('landing.heroSubtitle') })
   const heroRef = useRef<HTMLElement>(null)
-  const { scrollYProgress: heroScroll } = useScroll({
-    target: heroRef,
-    offset: ['start start', 'end start'],
-  })
-  const heroY = useTransform(heroScroll, [0, 1], [0, 40])
-  const heroOpacity = useTransform(heroScroll, [0, 1], [1, 0.3])
-  const heroScale = useTransform(heroScroll, [0, 1], [1, 0.98])
 
   // NOTE: the hero <img> blends against the *page* backdrop via `mix-blend-mode`.
   // An ancestor with an animated `opacity` (the old container fade) promoted that
@@ -120,7 +113,9 @@ export default function Landing() {
             buffer instead of the page: `multiply` (light) then renders invisible — the old "fades away on hard
             refresh" bug — while `screen` (dark) stays visible. The opaque wrapper bg keeps the blend correct.
             The dark fade animates the <img>'s OWN opacity (a leaf node), which is blend-safe; only an
-            *ancestor* animated opacity caused the bug. */}
+            *ancestor* animated opacity caused the bug. NOTE: `Layout` no longer animates `<motion.main>`'s
+            opacity on the home route (`initial={false}`), so the light image is fully static on load too —
+            it does not ride the page-transition fade like the rest of the content. */}
         <div
           className="absolute inset-0 -z-20 pointer-events-none"
           aria-hidden="true"
@@ -136,6 +131,7 @@ export default function Landing() {
             style={{
               opacity: theme === 'light' ? 0.12 : 0,
               mixBlendMode: 'multiply',
+              transition: 'none',
             }}
           />
           {/* Dark — fades in (headlights turning on) */}
@@ -162,14 +158,13 @@ export default function Landing() {
           />
         </div>
 
-        {/* Parallax background elements */}
-                <motion.div
-          className="absolute inset-0 -z-10"
-          style={{ y: heroY, opacity: heroOpacity, scale: heroScale }}
-        >
+        {/* Background grid. Kept STATIC (no framer transform/opacity) on purpose: a motion
+            layer here becomes its own compositing layer and destabilizes the light <img>'s
+            mix-blend-mode:multiply, dimming/fading it during scroll repaints. */}
+        <div className="absolute inset-0 -z-10">
           {/* Subtle engineering grid behind the hero */}
-                    <GridPattern opacity={0.06} />
-        </motion.div>
+          <GridPattern opacity={0.06} />
+        </div>
 
         <div className="relative z-10 max-w-4xl mx-auto px-6 flex flex-col items-center">
           {/* J — what's-new badge */}
