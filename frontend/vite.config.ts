@@ -13,8 +13,8 @@ export default defineConfig({
       // Leaving the plugin's default (generateRobotsTxt: true) overwrites that
       // file with a minimal "User-agent: *\nAllow: /" at build time.
       generateRobotsTxt: false,
+      exclude: ['/google33bc7b02ae9f2fda', '/google33bc7b02ae9f2fda.html'],
       dynamicRoutes: [
-        '/',
         '/tco',
         '/compare',
         '/car',
