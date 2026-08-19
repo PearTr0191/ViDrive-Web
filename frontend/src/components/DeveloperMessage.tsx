@@ -16,19 +16,7 @@ export default function DeveloperMessage() {
   const { t } = useI18n()
   const prefersReduced = useReducedMotion()
   const [open, setOpen] = useState(false)
-  const [mounted, setMounted] = useState(false)
   const closeBtnRef = useRef<HTMLButtonElement>(null)
-
-  useEffect(() => {
-    setMounted(true)
-    try {
-      if (localStorage.getItem(STORAGE_KEY) !== '1') {
-        setOpen(true)
-      }
-    } catch {
-      setOpen(true)
-    }
-  }, [])
 
   useEffect(() => {
     if (!open) return
@@ -73,11 +61,10 @@ export default function DeveloperMessage() {
       {/* Floating (i) launcher — bottom-right, clear of the custom scrollbar.
           Only rendered after the initial storage read so we don't flash it
           before knowing the user has already dismissed. */}
-      {mounted && !open && (
+      {!open && (
         <motion.button
-          initial={prefersReduced ? false : { opacity: 0, scale: 0.8 }}
+          initial={false}
           animate={{ opacity: 1, scale: 1 }}
-          transition={prefersReduced ? { duration: 0 } : { duration: 0.25, ease: 'easeOut', delay: 0.4 }}
           onClick={openModal}
           aria-label={t('devMsg.reopenAria')}
           title={t('devMsg.reopenAria')}
