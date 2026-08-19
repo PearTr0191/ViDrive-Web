@@ -154,21 +154,6 @@ async function waitForBackend(maxWait = 20000) {
 }
 
 async function main() {
-  // Sprint 1 #2: reject default/staging domains in production builds.
-  // VITE_SITE_URL must point at the production canonical domain; falling back
-  // to the *.pages.dev preview URL would bake stale canonicals / sitemap URLs
-  // into the static output and tank SEO.
-  const isProd = process.env.NODE_ENV === 'production' || process.env.CI === 'true'
-  if (isProd && SITE_URL.includes('pages.dev')) {
-    console.error(
-      `[build-ssg] ERROR: VITE_SITE_URL is "${SITE_URL}" which appears to be a ` +
-      `Cloudflare Pages preview URL. This build would bake non-production ` +
-      `canonicals and sitemap URLs into dist/. Set VITE_SITE_URL to the ` +
-      `production domain (e.g. "https://vidrive-web.pages.dev") and retry.`
-    )
-    process.exit(1)
-  }
-
   let backend = null
 
   try {
