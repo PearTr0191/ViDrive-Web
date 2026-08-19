@@ -1,8 +1,7 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef, lazy, Suspense } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useSearchParams, Link } from 'react-router-dom'
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianGrid, LineChart, Line, Legend } from 'recharts'
 import { api, historyApi, formatVND, toTitleCase, configApi } from '../lib'
 import type { CarInfo, TcoResponse, YearlyBreakdownEntry } from '../lib'
 import { useSeoMetaSafe, JsonLd, breadcrumbLd, SITE_URL } from '../lib/seo'
@@ -18,7 +17,9 @@ import PressToEditNumber from '../components/PressToEditNumber'
 import { useI18n } from '../lib/i18n'
 import { registerShortcutHandlers, unregisterShortcutHandlers } from '../hooks/useGlobalShortcuts'
 
-const CHART_COLORS = ['var(--chart-1)', 'var(--chart-2)', 'var(--chart-3)', 'var(--chart-4)', 'var(--chart-5)', 'var(--chart-6)', 'var(--chart-7)', 'var(--chart-8)']
+// E2 — recharts is heavy; the charts live in a lazily-loaded component so the
+// initial TCO bundle stays small (charts only load once a result exists).
+const TcoCharts = lazy(() => import('../components/TcoCharts'))
 
 // Reference constants for the EV charge-vs-fuel comparison (plan §F). These
 // mirror backend/src/config.py so the "ideal" comparison stays in sync with the
@@ -27,6 +28,12 @@ const CHART_COLORS = ['var(--chart-1)', 'var(--chart-2)', 'var(--chart-3)', 'var
 const EV_CHARGING_PRICE_VND_PER_KWH = 3858 // config.py: EV_CHARGING_PRICE_VND (V-Green)
 const EV_REFERENCE_PETROL_VND_PER_L = 22320 // config.py: PETROL_PRICE_CURRENT_VND
 const EV_ICE_REFERENCE_L_PER_100KM = 8 // typical C-segment petrol baseline
+
+// Normalize a city display name into the diacritic-free slug the API resolves
+// (e.g. "Hà Nội" -> "hanoi"). Keeps the <select> value in sync with the
+// diacritic-free `city` state so the dropdown shows the selected option.
+const slugifyCity = (name: string): string =>
+  name.toLowerCase().normalize('NFD').replace(/\p{M}/gu, '').replace(/\s+/g, '-')
 
 // Signature line item for the on-road breakdown. Each row is tagged with a
 // category-specific accent color so the uniquely-Vietnamese cost line items
@@ -44,17 +51,17 @@ function RegLineItem({
 }) {
   return (
     <div
-      className={`flex justify-between items-center text-sm px-2 py-1.5 rounded-md hover:bg-[rgba(var(--bg-base-rgb),0.3)] transition-colors`}
+      className="flex justify-between items-center text-sm px-2 py-1.5 rounded-md hover:bg-[rgba(var(--bg-base-rgb),0.3)] transition-colors"
     >
-      <span className={`flex items-center gap-2 ${bold ? 'text-[var(--text-primary)] font-medium' : 'text-[var(--text-secondary)]'}`}>
+      <span className={'flex items-center gap-2 ' + (bold ? 'text-[var(--text-primary)] font-medium' : 'text-[var(--text-secondary)]')}>
         <span
           aria-hidden="true"
           className="w-1 h-4 rounded-full"
-          style={{ backgroundColor: `var(${accentVar})` }}
+          style={{ backgroundColor: 'var(' + accentVar + ')' }}
         />
         {label}
     </span>
-      <span className={`font-mono ${bold ? 'text-[var(--text-primary)] font-semibold' : 'text-[var(--text-secondary)]'}`}>
+      <span className={'font-mono ' + (bold ? 'text-[var(--text-primary)] font-semibold' : 'text-[var(--text-secondary)]')}>
         {value}
     </span>
   </div>
@@ -66,44 +73,16 @@ const DEFAULTS = {
   city: 'hanoi',
   km: 15000,
   years: 5,
-  cityRatio: 30,
+  cityRatio: 60,
   showOppCost: false,
   rushHour: false,
   includeInsurance: false,
+  includeParkingToll: true,
   showLoan: false,
   loanDownPct: 30,
   loanRate: 8.5,
   loanTerm: 5,
 } as const
-
-// Imperative-free snapshot of every input that feeds a TCO calculation.
-// We compare the live form state against the snapshot that produced the
-// current result to decide whether the primary button should read
-// Calculate / Reset / Recalculate. `city_ratio_pct` is stored as the
-// integer 0–100 form (not the 0–1 fraction) to avoid float drift.
-interface TcoInputSignature {
-  car_id: string
-  city: string
-  km: number
-  years: number
-  city_ratio_pct: number
-  show_opp_cost: boolean
-  rush_hour: boolean
-  include_insurance: boolean
-}
-
-function tcoInputsEqual(a: TcoInputSignature, b: TcoInputSignature): boolean {
-  return (
-    a.car_id === b.car_id &&
-    a.city === b.city &&
-    a.km === b.km &&
-    a.years === b.years &&
-    a.city_ratio_pct === b.city_ratio_pct &&
-    a.show_opp_cost === b.show_opp_cost &&
-    a.rush_hour === b.rush_hour &&
-    a.include_insurance === b.include_insurance
-  )
-}
 
 const isCustomCarId = (id: string): boolean => id.startsWith('custom-')
 
@@ -115,6 +94,7 @@ export default function TcoCalculator() {
   const variant = searchParams.get('v') ?? 'default'
   const [summaryCopied, setSummaryCopied] = useState(false)
   const [pdfState, setPdfState] = useState<'idle' | 'exporting'>('idle')
+  // D1 — prefill a popular car so the calculator auto-runs on first load
   const [selectedCar, setSelectedCar] = useState<string>(searchParams.get('car') || '')
   const [city, setCity] = useState(searchParams.get('city') || DEFAULTS.city)
   const [km, setKm] = useState<number>(() => {
@@ -135,7 +115,13 @@ export default function TcoCalculator() {
   const [showOppCost, setShowOppCost] = useState<boolean>(DEFAULTS.showOppCost)
   const [rushHour, setRushHour] = useState(searchParams.get('rush') === '1')
   const [includeInsurance, setIncludeInsurance] = useState(searchParams.get('ins') === '1')
+  const [includeParkingToll, setIncludeParkingToll] = useState(searchParams.get('park') !== '0')
   const [linkCopied, setLinkCopied] = useState(false)
+  const [saved, setSaved] = useState(false)
+  // Flip the Save button back to its idle label whenever inputs change
+  useEffect(() => {
+    setSaved(false)
+  }, [selectedCar, city, km, years])
   const [showLoan, setShowLoan] = useState<boolean>(DEFAULTS.showLoan)
   const [loanDownPct, setLoanDownPct] = useState<number>(DEFAULTS.loanDownPct)
   const [loanRate, setLoanRate] = useState<number>(DEFAULTS.loanRate)
@@ -204,32 +190,6 @@ export default function TcoCalculator() {
   const displayedCity = result?.city ?? city
   const displayedCarId = result?.car_id ?? selectedCar
 
-  // Parameter-change tracking for the unified Calculate / Reset / Recalculate
-  // button. The live form state is compared against the snapshot that produced
-  // the current result. No change → "Reset"; any change → "Recalculate".
-  const currentTcoInput: TcoInputSignature = {
-    car_id: selectedCar,
-    city,
-    km,
-    years,
-    city_ratio_pct: cityRatio,
-    show_opp_cost: showOppCost,
-    rush_hour: rushHour,
-    include_insurance: includeInsurance,
-  }
-  const committedTcoInput: TcoInputSignature | null = result
-    ? {
-        car_id: result.car_id,
-        city: result.city,
-        km: result.km,
-        years: result.years,
-        city_ratio_pct: Math.round((result.city_ratio ?? 0) * 100),
-        show_opp_cost: result.show_opp_cost,
-        rush_hour: result.rush_hour ?? false,
-        include_insurance: result.include_insurance ?? false,
-      }
-    : null
-  const tcoParamsChanged = !!committedTcoInput && !tcoInputsEqual(committedTcoInput, currentTcoInput)
 
   // A freshly picked car with no result yet (or a result from a different car)
   // is a "new car" awaiting its first calculation.
@@ -240,9 +200,7 @@ export default function TcoCalculator() {
     ? t('tco.calculating')
     : isNewCar
       ? t('tco.calculate')
-      : tcoParamsChanged
-        ? t('tco.recalculate')
-        : t('tco.resetButton')
+      : t('tco.recalculate')
 
   // Reset — clears the result screen and restores all form fields to defaults
   const handleReset = useCallback(() => {
@@ -258,6 +216,7 @@ export default function TcoCalculator() {
     setShowOppCost(DEFAULTS.showOppCost)
     setRushHour(DEFAULTS.rushHour)
     setIncludeInsurance(DEFAULTS.includeInsurance)
+    setIncludeParkingToll(DEFAULTS.includeParkingToll)
     setLinkCopied(false)
     setShowLoan(DEFAULTS.showLoan)
     setLoanDownPct(DEFAULTS.loanDownPct)
@@ -291,8 +250,8 @@ export default function TcoCalculator() {
   // the wrong curve is never painted, then render the exact API curve once it
   // arrives.
   const { data: yearlyData, isInitialLoading: yearlyLoading } = useQuery({
-    queryKey: ['tco-yearly', displayedCarId, displayedCity, displayedKm, displayedYears, displayedRatio, rushHour],
-    queryFn: () => api.getYearlyBreakdown({ car_id: displayedCarId!, car: displayedIsCustom ? displayedCarInfo : undefined, city: displayedCity, km: displayedKm, years: displayedYears, city_ratio: displayedRatio, rush_hour: rushHour }),
+     queryKey: ['tco-yearly', displayedCarId, displayedCity, displayedKm, displayedYears, displayedRatio, rushHour, includeParkingToll],
+     queryFn: () => api.getYearlyBreakdown({ car_id: displayedCarId!, car: displayedIsCustom ? displayedCarInfo : undefined, city: displayedCity, km: displayedKm, years: displayedYears, city_ratio: displayedRatio, rush_hour: rushHour, include_parking_toll: includeParkingToll }),
     enabled: !!result && !!selectedCar,
     staleTime: 60_000,
   })
@@ -325,6 +284,7 @@ export default function TcoCalculator() {
       show_opp_cost: showOppCost,
       rush_hour: rushHour,
       include_insurance: includeInsurance,
+      include_parking_toll: includeParkingToll,
     }
     if (isCustomCarId(selectedCar)) {
       let customCarData = allCars.find(c => c.id === selectedCar)
@@ -348,13 +308,8 @@ export default function TcoCalculator() {
   // otherwise Calculate / Recalculate (same code path either way).
   const handleTcoPrimary = () => {
     if (mutation.isPending || !selectedCar) return
-    // New car (no result yet, or a result from a different car) → Calculate.
-    // Same car, params unchanged → Reset. Otherwise → Recalculate.
-    if (result && result.car_id === selectedCar && !tcoParamsChanged) {
-      handleReset()
-    } else {
-      handleCalculate()
-    }
+    // Primary action is always Calculate / Recalculate (the same code path).
+    handleCalculate()
   }
 
   // Enter is the single keyboard shortcut and must mirror the button exactly
@@ -386,11 +341,12 @@ export default function TcoCalculator() {
   }, [])
 
 
-  // Deep-link auto-calc on first mount only. Picking a car in the UI now just
-  // sets `selectedCar` (per product decision); the user clicks Calculate. A
-  // `?car=xxx` deep link still computes immediately on load.
+  // Deep-link auto-calc on first mount only when URL params are present.
+  // A plain visit to /tco with no query string shows the empty form; the user
+  // picks a car and clicks Calculate. A shared link like ?car=vios_2026&city=hanoi
+  // still computes immediately on load.
   useEffect(() => {
-    if (searchParams.get('car') && !result) {
+    if (!result && searchParams.toString()) {
       handleCalculateRef.current()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -477,6 +433,7 @@ export default function TcoCalculator() {
     params.set('ratio', String(cityRatio))
     if (rushHour) params.set('rush', '1')
     if (includeInsurance) params.set('ins', '1')
+    if (!includeParkingToll) params.set('park', '0')
     if (variant) params.set('v', variant)
     const url = `${window.location.origin}/tco?${params.toString()}`
     try {
@@ -570,7 +527,9 @@ export default function TcoCalculator() {
     ...(result.result.inspection_periodic
       ? [{ label: t('tco.periodicInspection'), value: result.result.inspection_periodic }]
       : []),
-    { label: t('tco.parkingTolls'), value: result.result.parking_toll.total_over_period },
+    ...(result.include_parking_toll
+      ? [{ label: t('tco.parkingTolls'), value: result.result.parking_toll.total_over_period }]
+      : []),
   ] : []
 
   const depreciationItems: Array<{
@@ -701,8 +660,8 @@ export default function TcoCalculator() {
         { name: t('nav.home'), url: SITE_URL },
         { name: t('tco.title'), url: `${SITE_URL}/tco` },
       ])} />
-      {/* Screen-reader page heading; visual title is in the GlassCard below */}
-      <h1 className="sr-only">{t('tco.title')}</h1>
+      {/* C7/E1 — visible keyword h1 at the top of the page content */}
+      <h1 className="text-3xl md:text-4xl font-heading font-bold text-[var(--text-primary)] mb-1">{t('tco.title')}</h1>
       {/* Floating warning notifications — surfaces when resale predictions
           fall back to parametric modeling (years beyond ML training range)
           for regular cars, or when a custom car is used (no ML data). */}
@@ -771,7 +730,7 @@ export default function TcoCalculator() {
                 aria-label={t('tco.city')}
               >
                 {cities?.map(c => (
-                  <option key={c.name} value={c.name.toLowerCase().replace(/\s+/g, '-')}>
+                  <option key={c.name} value={slugifyCity(c.name)}>
                     {toTitleCase(c.diacritic)}
                  </option>
                 ))}
@@ -787,16 +746,16 @@ export default function TcoCalculator() {
                   id="tco-km"
                   type="range"
                   min="1000"
-                  max="50000"
+                  max="100000"
                   step="1000"
                   value={km}
                   onChange={(e) => setKm(Number(e.target.value))}
-                  className={`w-full ${km > 50000 ? 'slider-overflow' : ''}`}
-                  style={{ ...sliderStyle(km, 1000, 50000), ...(km > 50000 ? { '--slider-fill': 'var(--danger)' } : {}) }}
+                  className={'w-full ' + (km > 100000 ? 'slider-overflow' : '')}
+                  style={{ ...sliderStyle(km, 1000, 100000), ...(km > 100000 ? { '--slider-fill': 'var(--danger)' } : {}) }}
                   aria-valuenow={km}
                   aria-valuemin={1000}
-                  aria-valuemax={50000}
-                  aria-valuetext={`${km.toLocaleString()} km`}
+                  aria-valuemax={100000}
+                  aria-valuetext={km.toLocaleString() + ' km'}
                   aria-label={t('tco.annualKm')}
                 />
               </div>
@@ -811,16 +770,16 @@ export default function TcoCalculator() {
                   id="tco-years"
                   type="range"
                   min="1"
-                  max="10"
+                  max="20"
                   step="1"
                   value={years}
                   onChange={(e) => setYears(Number(e.target.value))}
-                  className={`w-full ${years > 10 ? 'slider-overflow' : ''}`}
-                  style={{ ...sliderStyle(years, 1, 10), ...(years > 10 ? { '--slider-fill': 'var(--danger)' } : {}) }}
+                  className={'w-full ' + (years > 20 ? 'slider-overflow' : '')}
+                  style={{ ...sliderStyle(years, 1, 20), ...(years > 20 ? { '--slider-fill': 'var(--danger)' } : {}) }}
                   aria-valuenow={years}
                   aria-valuemin={1}
-                  aria-valuemax={10}
-                  aria-valuetext={`${years} ${t('unit.years')}`}
+                  aria-valuemax={20}
+                  aria-valuetext={years + ' ' + t('unit.years')}
                   aria-label={t('tco.years')}
                 />
               </div>
@@ -892,7 +851,21 @@ export default function TcoCalculator() {
               <span>{t('tco.physicalDamageInsurance')}</span>
               <span className="block text-[11px] text-[var(--text-muted)]">{t('tco.optionalInsuranceHint')}</span>
            </label>
-         </div>
+          </div>
+
+          <div className="flex items-start gap-2">
+            <input
+              type="checkbox"
+              id="parking-toll"
+              checked={includeParkingToll}
+              onChange={(e) => setIncludeParkingToll(e.target.checked)}
+              className="w-4 h-4 mt-0.5 flex-shrink-0 text-accent bg-[rgba(var(--bg-base-rgb),0.5)] border-[var(--border-default)] rounded focus:ring-accent/50"
+            />
+            <label htmlFor="parking-toll" className="text-sm text-[var(--text-primary)]">
+              <span>{t('tco.parkingTollsToggle')}</span>
+              <span className="block text-[11px] text-[var(--text-muted)]">{t('tco.parkingTollsHint')}</span>
+            </label>
+          </div>
 
           <AccentButton
             onClick={handleTcoPrimary}
@@ -901,6 +874,17 @@ export default function TcoCalculator() {
           >
             {tcoPrimaryLabel}
           </AccentButton>
+
+          {/* D6 — Reset demoted to a small secondary action (never the primary CTA) */}
+          {result && (
+            <button
+              type="button"
+              onClick={handleReset}
+              className="w-full mt-2 text-xs text-[var(--text-muted)] hover:text-[var(--text-secondary)] underline underline-offset-2 transition-colors"
+            >
+              {t('tco.resetButton')}
+            </button>
+          )}
 
           <Link to="/methodology" className="block w-full">
             <AccentButton variant="outline" className="w-full text-xs">
@@ -922,20 +906,26 @@ export default function TcoCalculator() {
               <AccentButton
                 variant="outline"
                 onClick={async () => {
-                  await historyApi.saveHistory(
-                    `${selectedCar}_${city}_${years}y`,
-                    { type: 'single', car_id: selectedCar, city, km, years, result: result.result }
-                  )
-                  queryClient.invalidateQueries({ queryKey: ['history'] })
+                  try {
+                    await historyApi.saveHistory(
+                      `${selectedCar}_${city}_${years}y`,
+                      { type: 'single', car_id: selectedCar, city, km, years, result: result.result }
+                    )
+                    queryClient.invalidateQueries({ queryKey: ['history'] })
+                    setSaved(true)
+                    window.setTimeout(() => setSaved(false), 2000)
+                  } catch {
+                    setSaved(false)
+                  }
                 }}
               >
-                {t('tco.saveToHistory')}
+                {saved ? t('common.savedToHistory') : t('tco.saveToHistory')}
              </AccentButton>
-              <Link to={`/compare?car=${selectedCar}`}>
+                <Link to={'/compare?car0=' + selectedCar + '&car1=fortuner_2026'}>
                 <AccentButton variant="outline">
                   {t('tco.compareWith')}
-               </AccentButton>
-             </Link>
+                </AccentButton>
+              </Link>
            </div>
           )}
        </div>
@@ -954,7 +944,11 @@ export default function TcoCalculator() {
           {mutation.isError && (
             <GlassCard className="p-3 border-danger/20" >
               <p className="text-danger text-sm" role="alert">{t('common.error')}: {mutation.error?.message}</p>
-           </GlassCard>
+              <div className="flex flex-wrap gap-3 mt-3">
+                <Link to="/" className="text-sm text-accent hover:underline focus:outline-none focus:ring-2 focus:ring-accent/40 rounded">{t('nav.home')}</Link>
+                <Link to="/car" className="text-sm text-accent hover:underline focus:outline-none focus:ring-2 focus:ring-accent/40 rounded">{t('nav.browse')}</Link>
+              </div>
+            </GlassCard>
           )}
 
           {result && (
@@ -1005,26 +999,29 @@ export default function TcoCalculator() {
                                  {t('tco.exportCsv')}
                                </button>
                                <button type="button" className="w-full text-left px-3 py-2 text-sm text-[var(--text-primary)] hover:bg-[var(--bg-elevated)] transition-colors truncate" onClick={handleCopyLink}>
-                                 {linkCopied ? t('tco.shareUrlCopied') : t('tco.copyLink')}
-                               </button>
-                               {phase1 && (
-                                 <>
+                                {linkCopied ? t('tco.shareUrlCopied') : t('tco.copyLink')}
+                                </button>
                                 <button type="button" className="w-full text-left px-3 py-2 text-sm text-[var(--text-primary)] hover:bg-[var(--bg-elevated)] transition-colors truncate" onClick={handleCopySummary}>
                                   {summaryCopied ? t('tco.summaryCopied') : t('tco.copySummary')}
                                 </button>
                                 <button type="button" className="w-full text-left px-3 py-2 text-sm text-[var(--text-primary)] hover:bg-[var(--bg-elevated)] transition-colors truncate" onClick={handleExportPdf} disabled={pdfState === 'exporting'}>
                                   {pdfState === 'exporting' ? '...' : t('tco.exportPdf')}
                                 </button>
-                                 </>
-                               )}
-                             </DropdownMenu>
-                             <AccentButton
-                               variant="outline"
-                               size="sm"
-                               onClick={() => document.getElementById('loan-calculator')?.scrollIntoView({ behavior: 'smooth' })}
-                             >
-                               {t('tco.jumpToLoan')}
-                            </AccentButton>
+                              </DropdownMenu>
+                              <AccentButton
+                                variant="outline"
+                                size="sm"
+                                onClick={handleCopyLink}
+                              >
+                                {linkCopied ? t('tco.shareUrlCopied') : t('tco.share')}
+                              </AccentButton>
+                              <AccentButton
+                                variant="outline"
+                                size="sm"
+                                onClick={() => document.getElementById('loan-calculator')?.scrollIntoView({ behavior: 'smooth' })}
+                              >
+                                {t('tco.jumpToLoan')}
+                             </AccentButton>
                            </div>
                       </div>
                        <div className="flex flex-wrap justify-evenly items-center gap-x-3 gap-y-2 text-center">
@@ -1056,128 +1053,11 @@ export default function TcoCalculator() {
                  </div>
                </div>
 
-              {/* Visual Charts */}
-              <GlassCard className="p-6">
-                <h3 className="text-lg font-heading font-semibold text-[var(--text-primary)] mb-4">{t('tco.charts')}</h3>
-                <div className="grid md:grid-cols-2 gap-6">
-                  {/* Pie chart - cost composition */}
-                  <div>
-                    <h4 className="text-sm text-accent mb-3">{t('tco.costComposition')}</h4>
-                    <div role="img" aria-label={t('tco.costComposition')}>
-                    <ResponsiveContainer width="100%" height={250}>
-                      <PieChart>
-                        <Pie
-                          data={pieData}
-                          cx="50%"
-                          cy="50%"
-                          outerRadius={80}
-                          fill="var(--chart-1)"
-                          dataKey="value"
-                        >
-                          {pieData.map((_, index) => (
-                            <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
-                          ))}
-                      </Pie>
-                        <Tooltip
-                          formatter={(value: any) => formatVND(value)}
-                          contentStyle={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid rgba(var(--accent-rgb), 0.2)', borderRadius: '8px', color: 'var(--text-primary)' }}
-                        />
-                    </PieChart>
-                  </ResponsiveContainer>
-                  </div>
-                    {/* Screen-reader accessible data table — visual chart conveys
-                        composition, but blind users need the actual numbers. */}
-                    <table className="sr-only">
-                       <caption>{t('tco.costComposition')}</caption>
-                      <thead>
-                        <tr>
-                          <th scope="col">{t('compare.metric')}</th>
-                          <th scope="col">{t('compare.amount')}</th>
-                      </tr>
-                    </thead>
-                      <tbody>
-                        {pieData.map((row, i) => (
-                          <tr key={i}>
-                            <th scope="row">{row.name}</th>
-                            <td>{formatVND(row.value)}</td>
-                        </tr>
-                        ))}
-                    </tbody>
-                  </table>
-                </div>
+                             {/* E2 — charts are lazy-loaded so recharts stays out of the initial bundle */}
+                <Suspense fallback={<GlassCard className="p-6"><div className="h-[250px] w-full"><Skeleton className="h-[250px] w-full" /></div></GlassCard>}>
+                  <TcoCharts pieData={pieData} lineData={lineData} displayedYears={displayedYears} result={result} yearlyLoading={yearlyLoading} />
+               </Suspense>
 
-                  {/* Line chart - operating costs vs car value retention (two-line comparison) */}
-                  <div>
-                    <h4 className="text-sm text-accent mb-3">{t('tco.cumulativeCost')}</h4>
-                    <div role="img" aria-label={`${t('tco.cumulativeCost')} over ${displayedYears} years`}>
-                    {yearlyLoading ? (
-                      <div className="relative h-[250px] w-full">
-                        <Skeleton className="h-[250px] w-full" />
-                        <div className="absolute inset-0 flex items-center justify-center">
-                          <div className="inline-block animate-spin rounded-full h-8 w-8 border-2 border-accent border-t-transparent" />
-                        </div>
-                      </div>
-                    ) : (
-                    <ResponsiveContainer width="100%" height={250}>
-                      <LineChart data={lineData}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="var(--border-subtle)" />
-                        <XAxis dataKey="year" stroke="var(--text-secondary)" fontSize={12} />
-                        <YAxis stroke="var(--text-secondary)" fontSize={12} tickFormatter={(v) => {
-                          // Drop the stray "0M" tick at the origin — recharts renders the
-                          // zero point with this formatter even when min is non-zero.
-                          if (!v) return ''
-                          return v >= 1e9 ? `${(v / 1e9).toFixed(1)}B` : `${Math.round(v / 1e6)}M`
-                        }} />
-                        <Tooltip
-                          formatter={(value, name) => [formatVND(Number(value ?? 0)), String(name ?? '')]}
-                          contentStyle={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid rgba(var(--accent-rgb), 0.2)', borderRadius: '8px', color: 'var(--text-primary)' }}
-                        />
-                        <Legend wrapperStyle={{ color: 'var(--text-secondary)', fontSize: 12, paddingTop: 8 }} />
-                         <Line
-                           type="monotone"
-                           dataKey="resale"
-                           name={t('tco.carValueRetention')}
-                           stroke="var(--accent)"
-                           strokeWidth={2}
-                           dot={{ r: 4, fill: 'var(--accent)' }}
-                           activeDot={{ r: 6 }}
-                         />
-                         <Line
-                           type="monotone"
-                           dataKey="operating"
-                           name={t('tco.operatingCumulative')}
-                           stroke="var(--chart-operating)"
-                           strokeWidth={2}
-                           dot={{ r: 4, fill: 'var(--chart-operating)' }}
-                           activeDot={{ r: 6 }}
-                         />
-                      {result.result.resale_guarantee_floor != null && lineData.some((row) => row.guarantee != null) && (<Line type="monotone" dataKey="guarantee" name={t('tco.guaranteeFloor')} stroke="var(--chart-guarantee)" strokeWidth={2} strokeDasharray="6 4" dot={{ r: 3, fill: 'var(--chart-guarantee)' }} activeDot={{ r: 5 }} />)}</LineChart>
-                    </ResponsiveContainer>
-                      )}</div>
-                     {/* Screen-reader accessible data table — visual chart conveys
-                         trend, but blind users need the actual numbers. */}
-                    <table className="sr-only">
-                      <caption>{t('tco.cumulativeCost')}</caption>
-                      <thead>
-                        <tr>
-                          <th scope="col">{t('tco.years')}</th>
-                          <th scope="col">{t('tco.carValueRetention')}</th>
-                          <th scope="col">{t('tco.operatingCumulative')}</th>{result.result.resale_guarantee_floor != null && (<th scope="col">{t('tco.guaranteeFloor')}</th>)}
-                       </tr>
-                     </thead>
-                      <tbody>
-                        {lineData.map((row, i) => (
-                          <tr key={i}>
-                            <th scope="row">{row.year}</th>
-                            <td>{formatVND(row.resale)}</td>
-                            <td>{formatVND(row.operating)}</td>{result.result.resale_guarantee_floor != null && (<td>{row.guarantee != null ? formatVND(row.guarantee) : '—'}</td>)}
-                         </tr>
-                        ))}
-                     </tbody>
-                   </table>
-                 </div>
-               </div>
-             </GlassCard>
 
               {/* Cost Breakdown — three collapsible sections */}
               <GlassCard className="p-6">
@@ -1193,7 +1073,7 @@ export default function TcoCalculator() {
                       aria-controls="tco-section-acquisition"
                     >
                       <span className="flex items-center gap-2 text-sm font-medium text-[var(--text-primary)]">
-                        <span aria-hidden="true" className={`transition-transform text-accent ${sectionsOpen.acquisition ? 'rotate-0' : '-rotate-90'}`}>▾</span>
+                         <span aria-hidden="true" className={'transition-transform text-accent ' + (sectionsOpen.acquisition ? 'rotate-0' : '-rotate-90')}>▾</span>
                         {t('tco.sectionAcquisition')}
                       </span>
                       <span className="text-sm font-mono accent-text font-semibold">{formatVND(acquisitionSubtotal)}</span>
@@ -1285,7 +1165,7 @@ export default function TcoCalculator() {
                       aria-controls="tco-section-operations"
                     >
                       <span className="flex items-center gap-2 text-sm font-medium text-[var(--text-primary)]">
-                        <span aria-hidden="true" className={`transition-transform text-accent ${sectionsOpen.operations ? 'rotate-0' : '-rotate-90'}`}>▾</span>
+                         <span aria-hidden="true" className={'transition-transform text-accent ' + (sectionsOpen.operations ? 'rotate-0' : '-rotate-90')}>▾</span>
                         {t('tco.sectionOperations')}
                       </span>
                       <span className="text-sm font-mono accent-text font-semibold">{formatVND(operationsSubtotal)}</span>
@@ -1318,7 +1198,7 @@ export default function TcoCalculator() {
                                   className="w-full flex justify-between items-center text-xs text-[var(--text-muted)] hover:text-[var(--text-secondary)] cursor-pointer py-1"
                                 >
                                   <span className="flex items-center gap-1.5">
-                                    <span aria-hidden="true" className={`transition-transform text-accent ${fuelDetailOpen ? 'rotate-0' : '-rotate-90'}`}>▾</span>
+                                     <span aria-hidden="true" className={'transition-transform text-accent ' + (fuelDetailOpen ? 'rotate-0' : '-rotate-90')}>▾</span>
                                     {t('tco.howFuelCalculated')}
                                   </span>
                                   <span className="font-mono">{breakdown.fuel.consumption?.toFixed(2)} {fuelUnit}</span>
@@ -1412,10 +1292,10 @@ export default function TcoCalculator() {
                       aria-controls="tco-section-depreciation"
                     >
                       <span className="flex items-center gap-2 text-sm font-medium text-[var(--text-primary)]">
-                        <span aria-hidden="true" className={`transition-transform text-accent ${sectionsOpen.depreciation ? 'rotate-0' : '-rotate-90'}`}>▾</span>
+                         <span aria-hidden="true" className={'transition-transform text-accent ' + (sectionsOpen.depreciation ? 'rotate-0' : '-rotate-90')}>▾</span>
                         {t('tco.sectionDepreciation')}
                       </span>
-                       <span className={`text-sm font-mono font-semibold ${depreciationNet < 0 ? 'text-success' : 'accent-text'}`}>{formatVND(depreciationNet)}</span>
+                        <span className={'text-sm font-mono font-semibold ' + (depreciationNet < 0 ? 'text-success' : 'accent-text')}>{formatVND(depreciationNet)}</span>
                     </button>
                     <AnimatePresence initial={false}>
                       {sectionsOpen.depreciation && (
@@ -1460,7 +1340,7 @@ export default function TcoCalculator() {
                                     <span className="block text-xs text-[var(--text-muted)] mt-1">{t(result.result.resale_note_key)}</span>
                                   )}
                                </span>
-                                <span className={`text-sm font-mono ${item.isNegative ? 'text-success' : 'text-[var(--text-primary)]'}`}>
+                                 <span className={'text-sm font-mono ' + (item.isNegative ? 'text-success' : 'text-[var(--text-primary)]')}>
                                   {formatVND(item.value)}
                                </span>
                              </div>
@@ -1488,7 +1368,6 @@ export default function TcoCalculator() {
                        </div>
                         <div className="text-xs text-[var(--text-muted)] mt-1">{t('tco.ciExplainer')}</div>
                         <div className="text-xs text-[var(--text-muted)] mt-0.5">{t('tco.ciDisclaimer')}</div>
-                        <div className="text-xs text-[var(--text-muted)] mt-0.5">{t('tco.parkingFootnote')}</div>
                      </div>
                     )}
                   </div>
@@ -1503,17 +1382,11 @@ export default function TcoCalculator() {
                   </div>
                 )}
 
-                {/* Data staleness badge */}
+                {/* Data freshness badge — pill style matching landing trust badges */}
                 {daysSinceUpdate != null && (
                   <div className="mt-4 text-center">
-                    <span
-                      className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium noprint ${
-                        (assumptionsMeta as any)?.data_stale
-                          ? 'bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400 border border-amber-300 dark:border-amber-700'
-                          : 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400 border border-emerald-300 dark:border-emerald-700'
-                      }`}
-                    >
-                      <span aria-hidden="true">{(assumptionsMeta as any)?.data_stale ? '\u26A0' : '\u2713'}</span>
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium border border-[var(--border-subtle)] text-[var(--text-secondary)]">
+                      <span className="text-accent" aria-hidden="true">✓</span>
                       {(assumptionsMeta as any)?.data_stale
                         ? t('common.dataStale').replace('{days}', String(daysSinceUpdate))
                         : t('common.dataCurrent')}
@@ -1598,7 +1471,7 @@ export default function TcoCalculator() {
                           aria-valuenow={loanDownPct}
                           aria-valuemin={0}
                           aria-valuemax={90}
-                          aria-valuetext={`${loanDownPct}%`}
+                           aria-valuetext={loanDownPct + '%'}
                           aria-label={t('loan.downPayment')}
                         />
                      </div>
@@ -1619,7 +1492,7 @@ export default function TcoCalculator() {
                           aria-valuenow={loanRate}
                           aria-valuemin={0}
                           aria-valuemax={20}
-                          aria-valuetext={`${loanRate}%`}
+                           aria-valuetext={loanRate + '%'}
                           aria-label={t('loan.interestRate')}
                         />
                      </div>
@@ -1640,7 +1513,7 @@ export default function TcoCalculator() {
                           aria-valuenow={loanTerm}
                           aria-valuemin={1}
                           aria-valuemax={10}
-                          aria-valuetext={`${loanTerm} ${t('unit.years')}`}
+                           aria-valuetext={loanTerm + ' ' + t('unit.years')}
                           aria-label={t('loan.loanTerm')}
                         />
                      </div>
@@ -1701,9 +1574,38 @@ export default function TcoCalculator() {
              </p>
            </GlassCard>
           )}
-       </div>
-     </div>
 
-   </div>
-  )
+          {/* C2 — page-specific FAQ (server-rendered, indexable) */}
+          <section className="max-w-3xl mx-auto pt-4">
+            <h2 className="text-2xl md:text-3xl font-heading font-bold text-center text-[var(--text-primary)] mb-8">{t('tco.faqTitle')}</h2>
+            <div className="space-y-3">
+              {[1, 2, 3, 4, 5, 6].map((n) => (
+                <details key={n} className="bg-[var(--glass-bg)]/60 border border-[var(--border-subtle)] rounded-lg p-3">
+                  <summary className="cursor-pointer font-medium text-[var(--text-primary)] list-none flex items-center justify-between">
+                    <span>{t(`tco.faqQ${n}`)}</span>
+                    <span className="text-[var(--text-muted)]" aria-hidden="true">▼</span>
+                  </summary>
+                  <p className="mt-2 text-sm text-[var(--text-secondary)]">{t(`tco.faqA${n}`)}</p>
+                </details>
+              ))}
+            </div>
+          </section>
+          <JsonLd data={{
+            '@context': 'https://schema.org',
+            '@type': 'FAQPage',
+            inLanguage: locale,
+            mainEntity: [1, 2, 3, 4, 5, 6].map(n => ({
+              '@type': 'Question',
+              name: t(`tco.faqQ${n}`),
+              acceptedAnswer: {
+                '@type': 'Answer',
+                text: t(`tco.faqA${n}`),
+              },
+            })),
+          }} />
+        </div>
+      </div>
+
+    </div>
+   )
 }

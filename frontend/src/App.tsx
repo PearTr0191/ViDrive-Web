@@ -1,20 +1,10 @@
-import { Routes, Route } from 'react-router-dom'
+import { Outlet } from 'react-router-dom'
 import { useEffect, useState } from 'react'
 import Layout from './components/Layout'
 import ErrorBoundary from './components/ErrorBoundary'
 import { useI18n } from './lib/i18n'
 import { JsonLd, SITE_URL } from './lib/seo'
-import Landing from './pages/Landing'
-import TcoCalculator from './pages/TcoCalculator'
-import Compare from './pages/Compare'
-import Wizard from './pages/Wizard'
-import History from './pages/History'
-import BrowseCars from './pages/BrowseCars'
-import CarDetail from './pages/CarDetail'
-import Methodology from './pages/Methodology'
-import Terms from './pages/Terms'
-import Privacy from './pages/Privacy'
-import NotFound from './pages/NotFound'
+import { useHead } from '@unhead/react'
 import DeveloperMessage from './components/DeveloperMessage'
 
 function RouteErrorBoundary({ children }: { children: React.ReactNode }) {
@@ -24,7 +14,7 @@ function RouteErrorBoundary({ children }: { children: React.ReactNode }) {
 
 function OfflineBanner() {
   const { t } = useI18n()
-  const [offline, setOffline] = useState(!navigator.onLine)
+  const [offline, setOffline] = useState(() => (typeof navigator !== 'undefined' ? !navigator.onLine : false))
 
   useEffect(() => {
     const goOffline = () => setOffline(true)
@@ -61,19 +51,7 @@ function App() {
     <Layout>
       <OfflineBanner />
       <RouteErrorBoundary>
-        <Routes>
-          <Route path="/" element={<Landing />} />
-          <Route path="/tco" element={<TcoCalculator />} />
-          <Route path="/compare" element={<Compare />} />
-          <Route path="/wizard" element={<Wizard />} />
-          <Route path="/car" element={<BrowseCars />} />
-          <Route path="/history" element={<History />} />
-          <Route path="/methodology" element={<Methodology />} />
-          <Route path="/terms" element={<Terms />} />
-          <Route path="/privacy" element={<Privacy />} />
-          <Route path="/car/:id" element={<CarDetail />} />
-          <Route path="*" element={<NotFound />} />
-        </Routes>
+        <Outlet />
       </RouteErrorBoundary>
     </Layout>
   )
@@ -95,6 +73,11 @@ function GlobalOverlays() {
 }
 
 export default function RootApp() {
+  const { locale } = useI18n()
+  // Keep <html lang> in sync with the active (default: vi) locale so the
+  // prerendered SSG HTML is correctly tagged for crawlers + assistive tech.
+  useHead({ htmlAttrs: { lang: locale } })
+
   return (
     <>
       {/* Global structured data — Organization + WebSite */}
@@ -103,8 +86,17 @@ export default function RootApp() {
         '@type': 'Organization',
         name: 'ViDrive',
         url: SITE_URL,
-        sameAs: [],
         logo: `${SITE_URL}/favicon-light.svg`,
+        sameAs: [
+          'https://github.com/PearTr0191',
+          'https://zalo.me/0866828946',
+        ],
+        contactPoint: {
+          '@type': 'ContactPoint',
+          email: 'tranhoanglethanh@gmail.com',
+          telephone: '+84866828946',
+          contactType: 'customer support',
+        },
       }} />
       <JsonLd data={{
         '@context': 'https://schema.org',
@@ -114,7 +106,7 @@ export default function RootApp() {
         inLanguage: 'vi',
         potentialAction: {
           '@type': 'SearchAction',
-          target: `${SITE_URL}/car/{search_term_string}`,
+          target: `${SITE_URL}/car?q={search_term_string}`,
           'query-input': 'required name=search_term_string',
         },
       }} />

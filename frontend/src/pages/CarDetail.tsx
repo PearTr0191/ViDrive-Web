@@ -1,4 +1,4 @@
-import { useParams, Link } from 'react-router-dom'
+import { useParams, Link, useLoaderData } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { motion, useReducedMotion } from 'framer-motion'
 import { api, formatVND, formatConsumption } from '../lib'
@@ -11,28 +11,30 @@ import { useI18n } from '../lib/i18n'
 
 export default function CarDetail() {
   const { t } = useI18n()
-  const { id } = useParams<{ id: string }>()
-  const prefersReduced = useReducedMotion()
+   const { id } = useParams<{ id: string }>()
+   const prefersReduced = useReducedMotion()
+   const loaderData = useLoaderData() as { car?: CarInfo }
 
-  const { data: car, isLoading, isError } = useQuery({
-    queryKey: ['car', id],
-    queryFn: () => {
-      if (id && id.startsWith('custom-')) {
-        try {
-          const stored = sessionStorage.getItem('vidrive-custom-car')
-          if (stored) {
-            const parsed: CarInfo = JSON.parse(stored)
-            if (parsed.id === id) return parsed
-          }
-        } catch { /* ignore parse errors */ }
-        throw new Error('Custom car data not found in sessionStorage')
-      }
-      return api.getCar(id!)
-    },
-    enabled: !!id,
-    retry: false,
-    refetchOnWindowFocus: false,
-  })
+   const { data: car, isLoading, isError } = useQuery({
+     queryKey: ['car', id],
+     queryFn: () => {
+       if (id && id.startsWith('custom-')) {
+         try {
+           const stored = sessionStorage.getItem('vidrive-custom-car')
+           if (stored) {
+             const parsed: CarInfo = JSON.parse(stored)
+             if (parsed.id === id) return parsed
+           }
+         } catch { /* ignore parse errors */ }
+         throw new Error('Custom car data not found in sessionStorage')
+       }
+       return api.getCar(id!)
+     },
+     enabled: !!id,
+     retry: false,
+     refetchOnWindowFocus: false,
+     initialData: loaderData?.car ?? undefined,
+   })
 
    const { data: allCars } = useQuery({
     queryKey: ['cars'],
@@ -48,9 +50,10 @@ export default function CarDetail() {
        ? t('page.carDetailDescription', { brand: car.brand, model: car.model, segment: car.segment })
        : t('page.browseDescription'),
      canonical: car ? `/car/${car.id}` : undefined,
-     ogImage: car ? `${SITE_URL}/cars/${encodeURIComponent(car.id)}.webp` : undefined,
-     ogImageAlt: car ? `${car.brand} ${car.model} right-side profile` : undefined,
-   })
+      ogImage: car ? `${SITE_URL}/cars/${encodeURIComponent(car.id)}.webp` : undefined,
+      ogImageAlt: car ? `${car.brand} ${car.model} side profile` : undefined,
+      ogType: 'product',
+    })
 
    if (isLoading) {
     return (
@@ -77,11 +80,13 @@ export default function CarDetail() {
     )
   }
 
-  const relatedCars: CarInfo[] = allCars
-    ? allCars.filter(c => c.segment === car.segment && c.id !== car.id).slice(0, 4)
-    : []
+    const relatedCars: CarInfo[] = allCars
+      ? allCars.filter(c => c.segment === car.segment && c.id !== car.id).slice(0, 4)
+      : []
 
-   return (
+    const fuelLabel = car.type === 'EV' ? 'Electric' : car.type === 'HEV' ? 'Hybrid' : car.type === 'ICE-D' ? 'Diesel' : 'Gasoline'
+
+    return (
     <div className="space-y-8">
       <JsonLd data={{
         '@context': 'https://schema.org',
@@ -95,11 +100,22 @@ export default function CarDetail() {
             ],
           },
           {
-            '@type': 'Product',
+            '@type': 'Car',
             name: `${car.brand} ${car.model}`,
+            description: `${car.brand} ${car.model} — ${car.segment} ${car.type} tại Việt Nam, giá ${formatVND(car.price)}.`,
             brand: { '@type': 'Brand', name: car.brand },
             model: car.model,
             category: car.segment,
+            sku: car.id,
+            fuelType: fuelLabel,
+            vehicleEngine: fuelLabel,
+            numberOfSeats: car.seats,
+            additionalProperty: [
+              { '@type': 'PropertyValue', name: 'Segment', value: car.segment },
+              { '@type': 'PropertyValue', name: 'Fuel type', value: fuelLabel },
+              { '@type': 'PropertyValue', name: 'Seats', value: car.seats },
+              { '@type': 'PropertyValue', name: 'Consumption', value: `${car.consumption} ${car.type === 'EV' ? 'kWh/100km' : 'L/100km'}` },
+            ],
             url: `${SITE_URL}/car/${car.id}`,
             offers: {
               '@type': 'Offer',
@@ -141,6 +157,11 @@ export default function CarDetail() {
               {/* Decorative angle thumbnails — segment silhouettes in screened tones,
                   fill the gallery slot without drowning the spec content below. */}
             </div>
+
+            {/* C6 — unique, indexable editorial prose built from the car's own data */}
+            <p className="text-sm leading-relaxed text-[var(--text-secondary)] mb-6">
+              {t('carDetail.editorial', { brand: car.brand, model: car.model, segment: car.segment, type: car.type, seats: String(car.seats), price: formatVND(car.price) })}
+            </p>
 
             <div className="grid md:grid-cols-2 gap-4">
               <div>
@@ -223,6 +244,16 @@ export default function CarDetail() {
             </div>
           </GlassCard>
         </motion.aside>
+      </div>
+
+      {/* C15 — sources for the methodology behind the estimates */}
+      <div className="text-xs text-[var(--text-muted)] space-y-1">
+        <div>{t('carDetail.sources')}</div>
+        <div className="flex flex-wrap gap-x-4 gap-y-1">
+          <a href={t('methodology.source.fuelPricing')} target="_blank" rel="noopener noreferrer" className="underline hover:text-[var(--accent)]">{t('methodology.source.fuelPricing')}</a>
+          <a href={t('methodology.source.govRegistration')} target="_blank" rel="noopener noreferrer" className="underline hover:text-[var(--accent)]">{t('methodology.source.govRegistration')}</a>
+          <a href={t('methodology.source.resale')} target="_blank" rel="noopener noreferrer" className="underline hover:text-[var(--accent)]">{t('methodology.source.resale')}</a>
+        </div>
       </div>
 
       {/* Similar vehicles */}

@@ -5,7 +5,7 @@ import Breadcrumbs from '../components/Breadcrumbs'
 
 export default function Terms() {
   const { t } = useI18n()
-  useSeoMetaSafe({ title: `ViDrive - ${t('terms.title')}` })
+  useSeoMetaSafe({ title: `ViDrive - ${t('terms.title')}`, description: t('page.termsDescription') })
   return (
     <div className="max-w-3xl mx-auto">
       <Breadcrumbs />

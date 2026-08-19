@@ -5,7 +5,7 @@ import GlassCard from '../components/ui/GlassCard'
 import AccentButton from '../components/AccentButton'
 import ErrorBoundary from '../components/ErrorBoundary'
 import { useI18n } from '../lib/i18n'
-import { useSeoMetaSafe } from '../lib/seo'
+import { useSeoMetaSafe, JsonLd, SITE_URL } from '../lib/seo'
 import { configApi, formatVND, type AssumptionsResponse, type AssumptionItem } from '../lib/api'
 import { useConfigEditor, buildChangeKey, type ChangeRecord, type SubmitState } from '../hooks/useConfigEditor'
 import { CheckeredFlag } from '../components/AutomotivePatterns'
@@ -383,12 +383,19 @@ function SubmitBar({ t, changeCount, author, onAuthorChange, submitState, onSubm
 
 export default function Methodology() {
   const { t, locale } = useI18n()
-  useSeoMetaSafe({ title: `ViDrive - ${t('nav.methodology')}` })
+  useSeoMetaSafe({ title: `ViDrive - ${t('nav.methodology')}`, description: t('page.methodologyDescription') })
   const prefersReduced = useReducedMotion()
   const [showFormulas, setShowFormulas] = useState(false)
   const [showAssumptions, setShowAssumptions] = useState(false)
   const [editorMode, setEditorMode] = useState(false)
   const [exporting, setExporting] = useState(false)
+
+  // C4: metadata for the Article structured data (last_updated proves freshness).
+  const { data: assumptionsMeta } = useQuery({
+    queryKey: ['assumptions-meta'],
+    queryFn: () => configApi.getAssumptions(),
+    staleTime: 60_000,
+  })
 
   const editor = useConfigEditor(locale, t)
 
@@ -439,6 +446,25 @@ export default function Methodology() {
 
   return (
     <div className="space-y-8 max-w-4xl mx-auto">
+      {/* C4 — Article structured data with provenance + freshness signal */}
+      <JsonLd data={{
+        '@context': 'https://schema.org',
+        '@type': 'Article',
+        headline: t('methodology.title'),
+        description: t('page.methodologyDescription'),
+        inLanguage: locale,
+        author: { '@type': 'Organization', name: 'ViDrive' },
+        publisher: { '@type': 'Organization', name: 'ViDrive', url: SITE_URL },
+        dateModified: assumptionsMeta?.metadata?.last_updated ?? new Date().toISOString().split('T')[0],
+        mainEntityOfPage: { '@type': 'WebPage', '@id': `${SITE_URL}/methodology` },
+        isBasedOn: [
+          { '@type': 'WebSite', name: 'Petrolimex fuel prices', url: t('methodology.source.fuelPricing') },
+          { '@type': 'WebSite', name: 'VAMA manufacturer data', url: t('methodology.source.manufacturerData') },
+          { '@type': 'WebSite', name: 'Government registration fees', url: t('methodology.source.govRegistration') },
+          { '@type': 'WebSite', name: 'Compulsory motor insurance', url: t('methodology.source.insurance') },
+          { '@type': 'WebSite', name: 'Used-car market (Bonbanh)', url: t('methodology.source.resale') },
+        ],
+      }} />
       {/* Print-only title — replaces the giant hero h1 on paper so the printed page
           has a clear, branded header even with the screen hero hidden. */}
       <h1 className="print-only text-2xl font-bold text-center mb-2">
@@ -539,9 +565,6 @@ export default function Methodology() {
             </AccentButton>
           </div>
         </div>
-        <p className="text-sm text-[var(--text-secondary)] mb-3">
-          {t('methodology.assumptionsEditHint')}
-        </p>
 
         <AnimatePresence initial={false}>
           {showAssumptions && (

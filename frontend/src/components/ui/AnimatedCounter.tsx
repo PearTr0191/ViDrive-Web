@@ -64,9 +64,9 @@ export default function AnimatedCounter({
     return Math.round(val).toLocaleString('vi-VN')
   }
 
-  return (
-    <span ref={ref} className={className}>
-      {text ? text : <>{prefix}{formatValue(displayValue)}{suffix}</>}
-    </span>
-  )
+   return (
+     <span ref={ref} className={className} style={{ fontVariantNumeric: 'tabular-nums', minWidth: '1ch', display: 'inline-block' }}>
+       {text ? text : <>{prefix}{formatValue(displayValue)}{suffix}</>}
+     </span>
+   )
 }

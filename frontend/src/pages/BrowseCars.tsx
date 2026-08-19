@@ -9,7 +9,7 @@ import AccentButton from '../components/AccentButton'
 import GlassCard from '../components/ui/GlassCard'
 import CarMedia from '../components/CarMedia'
 import { useI18n } from '../lib/i18n'
-import { Link } from 'react-router-dom'
+import { Link, useLoaderData, useSearchParams } from 'react-router-dom'
 
 const powertrainColors: Record<string, string> = {
   'EV': 'inline-flex bg-emerald-900 text-white',
@@ -61,7 +61,9 @@ function SortableHeader({ column, sortState, onSort, align = 'right', children }
 export default function BrowseCars() {
   const { t } = useI18n()
   useSeoMetaSafe({ title: `ViDrive - ${t('nav.browse')}`, description: t('page.browseDescription') })
-  const [searchTerm, setSearchTerm] = useState('')
+  const [searchParams] = useSearchParams()
+  // C1 — initialize the search box from the URL (?q=) so the sitelinks search box works
+  const [searchTerm, setSearchTerm] = useState(searchParams.get('q') ?? '')
   const [activeType, setActiveType] = useState<string | null>(null)
   const [sortState, setSortState] = useState<SortState>({ key: null, direction: null })
   const [currentPage, setCurrentPage] = useState(1)
@@ -76,10 +78,13 @@ export default function BrowseCars() {
     })
   }, [])
 
+  const loaderData = useLoaderData() as { cars?: CarInfo[] }
+
   const { data: cars, isLoading, isError, refetch } = useQuery({
     queryKey: ['cars'],
     queryFn: () => api.getCars(),
     retry: 1,
+    initialData: loaderData?.cars ?? undefined,
   })
 
   const [customCar, setCustomCar] = useState<CarInfo | null>(null)
@@ -231,7 +236,7 @@ export default function BrowseCars() {
         { name: t('nav.home'), url: SITE_URL },
         { name: t('nav.browse'), url: `${SITE_URL}/car` },
       ])} />
-      <h1 className="sr-only">{t('browse.title')}</h1>
+      <h1 className="text-3xl md:text-4xl font-heading font-bold text-[var(--text-primary)] mb-1">{t('browse.title')}</h1>
       {/* Custom car CTA — FIRST thing on the page for discoverability */}
       <Link to="/wizard" className="block">
         <GlassCard className="p-5 md:p-6 border-accent/40 bg-accent/5 hover:bg-accent/10 transition-colors cursor-pointer">
@@ -376,7 +381,7 @@ export default function BrowseCars() {
                     <td className="text-right text-[var(--text-primary)] py-4 px-4 font-mono">{formatVND(c.price)}</td>
 <td className="text-right py-4 px-4">
                       <div
-                        className={`px-2 py-1 rounded text-xs font-mono ${powertrainColors[c.type] || 'text-[var(--text-primary)] bg-[var(--bg-surface)]'}`}
+                        className={'px-2 py-1 rounded text-xs font-mono ' + (powertrainColors[c.type] || 'text-[var(--text-primary)] bg-[var(--bg-surface)]')}
                         style={{
                           backgroundColor:
                             c.type === 'EV'
@@ -429,7 +434,7 @@ export default function BrowseCars() {
                       <div className="text-xs text-[var(--text-secondary)]">{c.id} • {c.segment}</div>
                     </div>
                     <div
-                      className={`px-2 py-1 rounded text-xs font-mono ${powertrainColors[c.type] || 'text-[var(--text-primary)] bg-[var(--bg-surface)]'}`}
+                       className={'px-2 py-1 rounded text-xs font-mono ' + (powertrainColors[c.type] || 'text-[var(--text-primary)] bg-[var(--bg-surface)]')}
                       style={{
                         backgroundColor:
                           c.type === 'EV'

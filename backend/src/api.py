@@ -212,6 +212,7 @@ class TcoRequest(BaseModel):
     show_opp_cost: bool = False
     rush_hour: bool = False
     include_insurance: bool = False
+    include_parking_toll: bool = True
 
 
 class CompareRequest(BaseModel):
@@ -227,6 +228,7 @@ class CompareRequest(BaseModel):
     show_opp_cost: bool = False
     rush_hour: bool = False
     include_insurance: bool = False
+    include_parking_toll: bool = True
 
 
 class LoanRequest(BaseModel):
@@ -258,6 +260,7 @@ class WizardRequest(BaseModel):
     show_opp_cost: bool = False
     rush_hour: bool = False
     include_insurance: bool = False
+    include_parking_toll: bool = True
 
 
 class HistorySaveRequest(BaseModel):
@@ -377,6 +380,7 @@ class TcoCalculationResponse(BaseModel):
     show_opp_cost: bool
     rush_hour: bool = False
     include_insurance: bool = False
+    include_parking_toll: bool = True
     result: TcoResult
 
 
@@ -392,6 +396,7 @@ class CompareResponse(BaseModel):
     show_opp_cost: bool
     rush_hour: bool = False
     include_insurance: bool = False
+    include_parking_toll: bool = True
     results: list[TcoResult]
 
 
@@ -578,7 +583,7 @@ def ownership_stats(car_id: str | None = None):
 
     Social-proof signal only — honest and auditable. Computed as the mean over
     every car of (fuel + maintenance + legal) / years, using a Hanoi baseline
-    (15,000 km/yr, 5 years, 30% city driving). Resale is excluded so
+    (15,000 km/yr, 5 years, 60% city driving). Resale is excluded so
     brand-specific resale assumptions do not skew the figure. Cached 30 min.
 
     If fewer than 10 cars are modelled, `insufficient` is returned and the
@@ -675,6 +680,7 @@ def calculate_tco(req: TcoRequest):
         c, req.city, req.km, req.years,
         area=area, city_ratio=req.city_ratio,
         rush_hour=req.rush_hour, include_insurance=req.include_insurance,
+        include_parking_toll=req.include_parking_toll,
     )
     return {
         "car_id": req.car_id,
@@ -687,6 +693,7 @@ def calculate_tco(req: TcoRequest):
         "show_opp_cost": req.show_opp_cost,
         "rush_hour": req.rush_hour,
         "include_insurance": req.include_insurance,
+        "include_parking_toll": req.include_parking_toll,
         "result": res,
     }
 
@@ -718,7 +725,8 @@ def compare_tco(req: CompareRequest):
     results = [
         get_tco(_enrich_car(_resolve_car(cid, custom_lookup.get(cid), cars), cid),
                 req.city, req.km, req.years, area=area, city_ratio=req.city_ratio,
-                rush_hour=req.rush_hour, include_insurance=req.include_insurance)
+                 rush_hour=req.rush_hour, include_insurance=req.include_insurance,
+                 include_parking_toll=req.include_parking_toll)
         for cid in req.car_ids
     ]
     return {
@@ -731,6 +739,7 @@ def compare_tco(req: CompareRequest):
         "show_opp_cost": req.show_opp_cost,
         "rush_hour": req.rush_hour,
         "include_insurance": req.include_insurance,
+        "include_parking_toll": req.include_parking_toll,
         "results": results,
     }
 
@@ -755,6 +764,7 @@ def tco_yearly_breakdown(req: TcoRequest):
     yearly, warnings, ml_max_year = get_tco_yearly(
         _enrich_car(car, req.car_id), req.city, req.km, req.years,
         area=area, city_ratio=req.city_ratio,
+        include_parking_toll=req.include_parking_toll,
     )
     return {
         "car_id": req.car_id,
@@ -793,6 +803,7 @@ def wizard_custom(req: WizardRequest):
         _enrich_car(car), req.city, req.km, req.years,
         area=area, city_ratio=req.city_ratio,
         rush_hour=req.rush_hour, include_insurance=req.include_insurance,
+        include_parking_toll=req.include_parking_toll,
     )
     return {
         "car": car,
@@ -804,6 +815,7 @@ def wizard_custom(req: WizardRequest):
         "show_opp_cost": req.show_opp_cost,
         "rush_hour": req.rush_hour,
         "include_insurance": req.include_insurance,
+        "include_parking_toll": req.include_parking_toll,
         "result": res,
     }
 

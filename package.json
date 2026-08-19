@@ -4,6 +4,7 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.62.1",
+    "vite-plugin-react-ssg": "^0.2.0",
     "vite-plugin-sitemap": "^0.8.2"
   }
 }

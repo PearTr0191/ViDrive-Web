@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient, useQueries } from '@tanstack/react-query'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useSearchParams, Link } from 'react-router-dom'
 import { api, historyApi, configApi, formatVND, toTitleCase } from '../lib'
@@ -69,17 +69,21 @@ export default function Compare() {
       const id = searchParams.get(`car${i}`)
       if (id) ids.push(id)
     }
-    while (ids.length < 2) ids.push('')
     return ids.slice(0, MAX_COMPARE_CARS)
   })()
   const [carIds, setCarIds] = useState<string[]>(initialCarIds)
   const [city, setCity] = useState(searchParams.get('city') || 'hanoi')
   const [km, setKm] = useState(Number(searchParams.get('km')) || 15000)
   const [years, setYears] = useState(Number(searchParams.get('years')) || 5)
-  const [cityRatio, setCityRatio] = useState(Number(searchParams.get('ratio')) || 30)
+  const [cityRatio, setCityRatio] = useState(Number(searchParams.get('ratio')) || 60)
   const [showOppCost, setShowOppCost] = useState(searchParams.get('opp') === '1')
   const [rushHour, setRushHour] = useState(searchParams.get('rush') === '1')
   const [copyDone, setCopyDone] = useState(false)
+  const [saved, setSaved] = useState(false)
+  // Revert the Save button label when inputs change
+  useEffect(() => {
+    setSaved(false)
+  }, [city, km, years, cityRatio, showOppCost, carIds])
   const [pdfState, setPdfState] = useState<'idle' | 'exporting'>('idle')
   // Which compared car the yearly cumulative breakdown shows. null = best car.
   const [yearlyCarIdx, setYearlyCarIdx] = useState<number | null>(null)
@@ -161,6 +165,20 @@ export default function Compare() {
     })
   }, [carIds, city, km, years, cityRatio, showOppCost, allCars, mutation])
 
+  // D2 — keep a fresh handle for the mount-time auto-compare
+  const handleCalculateRef = useRef(handleCalculate)
+  handleCalculateRef.current = handleCalculate
+
+  // Auto-run the comparison on first mount only when URL params are present.
+  // A plain visit to /compare shows the empty picker; a shared link with
+  // ?car0=...&car1=...&city=... still computes immediately on load.
+  useEffect(() => {
+    if (searchParams.toString() && carIds.filter(id => id).length >= 2 && !mutation.data) {
+      handleCalculateRef.current()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   const addCar = () => {
     if (carIds.length < MAX_COMPARE_CARS) {
       setCarIds([...carIds, ''])
@@ -231,6 +249,117 @@ export default function Compare() {
   const validIds = carIds.filter(id => id)
   const bestIdx = results ? results.findIndex(r => r.tco === Math.min(...results.map(r => r.tco))) : -1
 
+  // Fetch registration + fuel breakdown for each compared car so the Compare
+  // table can show the same granular line items as the TCO page
+  // (Road Fee, Civil Insurance, fuel detail, etc.).
+  const breakdownResults = useQueries({
+    queries: results
+      ? validIds.map((id) => ({
+          queryKey: ['compare-breakdown', id, city, km, years, cityRatio, rushHour],
+          queryFn: () => api.getBreakdown({
+            car_id: id,
+            car: isCustomCarId(id) ? allCars.find(c => c.id === id) : undefined,
+            city,
+            km,
+            years,
+            city_ratio: cityRatio / 100,
+            rush_hour: rushHour,
+          }),
+          enabled: !!results && !!id,
+          staleTime: 60_000,
+        }))
+      : [],
+  })
+
+  // Extract registration breakdown per car index (for acquisition rows).
+  // Falls back gracefully when breakdown hasn't loaded yet.
+  const regBreakdowns = (results ?? []).map((_, i) => breakdownResults[i]?.data?.registration ?? null)
+
+  // ─── Per-row minimum value index ──────────────────────────────────────────
+  // Highlights the lowest value in each row with accent color (light green).
+  // For cost items (fuel, maint, etc.) this means the cheapest car.
+  // For the resale row, the minimum is the smallest resale value.
+  interface CompareRow {
+    key: string
+    label: string
+    get: (r: TcoResult, idx: number) => number
+    isTotal?: boolean
+    isCredit?: boolean  // true → value is a benefit (shown green, e.g. resale)
+  }
+
+  const rowMinIdx = (row: CompareRow): number => {
+    if (!results?.length) return -1
+    const vals = results.map((r, i) => row.get(r, i))
+    if (vals.every((v) => v === vals[0])) return -1
+    let minIdx = 0
+    let minVal = vals[0]
+    for (let i = 1; i < vals.length; i++) {
+      if (vals[i] < minVal) {
+        minVal = vals[i]
+        minIdx = i
+      }
+    }
+    return minIdx
+  }
+
+  // Per-section rows for each car — mirrors the TCO page grouping with the
+  // same line-item detail.
+  const acquisitionRows: CompareRow[] = results
+    ? [
+        { key: 'msrp', label: t('tco.msrp'), get: (r) => r.price },
+        { key: 'regTax', label: t('tco.regTax'), get: (r) => r.reg_tax },
+        { key: 'plateFee', label: t('tco.regPlateFee'), get: (r) => r.reg.plate },
+        { key: 'inspectionFee', label: t('tco.regInspection'), get: (r) => r.reg.inspection },
+        {
+          key: 'roadFee',
+          label: t('tco.regRoadFee'),
+          get: (_r, i) => regBreakdowns[i]?.road_fee ?? (results[i].on_road - results[i].price - results[i].reg.total) / 2,
+        },
+        {
+          key: 'civilIns',
+          label: t('tco.regInsurance'),
+          get: (_r, i) => regBreakdowns[i]?.insurance ?? (results[i].on_road - results[i].price - results[i].reg.total) / 2,
+        },
+        { key: 'onRoad', label: t('tco.onRoadTotal'), get: (r) => r.on_road, isTotal: true },
+      ]
+    : []
+
+  const operationsRows: CompareRow[] = results
+    ? [
+        { key: 'fuel', label: t('tco.fuel'), get: (r) => r.fuel },
+        { key: 'maint', label: t('tco.maintenance'), get: (r) => r.maint },
+        { key: 'legal', label: t('tco.insurance'), get: (r) => r.legal },
+        ...(results.some((r) => r.insurance_optional)
+          ? [{ key: 'optIns', label: t('tco.physicalDamageInsurance'), get: (r: TcoResult) => r.insurance_optional ?? 0 }]
+          : []),
+        ...(results.some((r) => r.inspection_periodic)
+          ? [{ key: 'periodicInspection', label: t('tco.periodicInspection'), get: (r: TcoResult) => r.inspection_periodic ?? 0 }]
+          : []),
+        { key: 'parking', label: t('tco.parkingTolls'), get: (r) => r.parking_toll.total_over_period },
+        ...(showOppCost ? [{ key: 'oppCost', label: t('tco.opportunityCost'), get: (r: TcoResult) => r.opp_cost }] : []),
+      ]
+    : []
+
+  const depreciationRows: CompareRow[] = results
+    ? [
+        { key: 'predictedResale', label: t('tco.predictedResale'), get: (r) => r.resale, isCredit: true },
+        ...(results.some((r) => r.resale_guarantee_floor != null)
+          ? [{
+              key: 'guaranteeFloor',
+              label: t('tco.guaranteeFloor'),
+              get: (r: TcoResult) => r.resale_guarantee_floor ?? 0,
+              isCredit: true,
+            }]
+          : []),
+        { key: 'totalDepreciation', label: t('tco.totalDepreciation'), get: (r) => r.depreciation },
+      ]
+    : []
+
+  const acquisitionSubtotal = (r: TcoResult) => r.on_road
+  const operationsSubtotal = (r: TcoResult) =>
+    r.fuel + r.maint + r.legal + (r.insurance_optional ?? 0) + (r.inspection_periodic ?? 0) + r.parking_toll.total_over_period + (showOppCost ? r.opp_cost : 0)
+  const depreciationNet = (r: TcoResult) => -r.depreciation
+
   const handleCopyLink = async () => {
     const base = window.location.origin + '/compare?'
     const params = new URLSearchParams()
@@ -260,12 +389,18 @@ export default function Compare() {
 
   const handleSaveToHistory = async () => {
     if (!results) return
-    await historyApi.saveHistory(
-      `compare_${validIds.join('_')}`,
-      { type: 'compare', car_ids: validIds, city, km, years, ratio: cityRatio / 100, show_opp: showOppCost, results }
-    )
-   queryClient.invalidateQueries({ queryKey: ['history'] })
-   }
+    try {
+      await historyApi.saveHistory(
+        `compare_${validIds.join('_')}`,
+        { type: 'compare', car_ids: validIds, city, km, years, ratio: cityRatio / 100, show_opp: showOppCost, results }
+      )
+      queryClient.invalidateQueries({ queryKey: ['history'] })
+      setSaved(true)
+      window.setTimeout(() => setSaved(false), 2000)
+    } catch {
+      setSaved(false)
+    }
+  }
 
    // Sync state to URL with 400ms debounce (review 6.1)
   useEffect(() => {
@@ -332,35 +467,7 @@ export default function Compare() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mutation.isPending, handleComparePrimary])
 
-  // Per-section rows for each car. Mirrors the TCO page grouping.
-  // Acquisition = MSRP + reg-tax + plate + inspection (= on_road).
-  // Operations = fuel + maint + legal + optional insurance + parking.
-  // Depreciation & Resale = resale (negative styling) + depreciation.
-  const acquisitionRows = results ? [
-    { key: 'onRoad', label: t('tco.onRoadPrice'), get: (r: TcoResult) => r.on_road },
-  ] : []
-
-  const operationsRows = results ? [
-    { key: 'fuel', label: t('tco.fuel'), get: (r: TcoResult) => r.fuel },
-    { key: 'maint', label: t('tco.maintenance'), get: (r: TcoResult) => r.maint },
-    { key: 'legal', label: t('tco.insurance'), get: (r: TcoResult) => r.legal },
-    ...(results.some(r => r.insurance_optional)
-      ? [{ key: 'optIns', label: t('tco.physicalDamageInsurance'), get: (r: TcoResult) => r.insurance_optional ?? 0 }]
-      : []),
-    { key: 'parking', label: t('tco.parkingTolls'), get: (r: TcoResult) => r.parking_toll.total_over_period },
-    ...(showOppCost ? [{ key: 'oppCost', label: t('tco.opportunityCost'), get: (r: TcoResult) => r.opp_cost }] : []),
-  ] : []
-
-  const depreciationRows = results ? [
-    { key: 'depreciation', label: t('compare.depreciation'), get: (r: TcoResult) => r.depreciation, isNegative: true },
-  ] : [] as Array<{ key: string; label: string; get: (r: TcoResult) => number; isNegative?: boolean }>
-
-  const acquisitionSubtotal = (r: TcoResult) => r.on_road
-  const operationsSubtotal = (r: TcoResult) =>
-    r.fuel + r.maint + r.legal + (r.insurance_optional ?? 0) + r.parking_toll.total_over_period + (showOppCost ? r.opp_cost : 0)
-  const depreciationNet = (r: TcoResult) => -r.depreciation
-
-  // Yearly breakdown query — one selectable car (default = best value).
+   // Yearly breakdown query — one selectable car (default = best value).
   const effectiveYearlyIdx = yearlyCarIdx != null ? yearlyCarIdx : bestIdx
   const yearlyCarId = displayedCarIds[effectiveYearlyIdx] ?? validIds[0]
   const { data: yearlyData } = useQuery({
@@ -384,7 +491,7 @@ export default function Compare() {
         { name: t('nav.home'), url: SITE_URL },
         { name: t('compare.title'), url: `${SITE_URL}/compare` },
       ])} />
-      <h1 className="sr-only">{t('compare.title')}</h1>
+      <h1 className="text-3xl md:text-4xl font-heading font-bold text-[var(--text-primary)] mb-1">{t('compare.title')}</h1>
       <div className="grid lg:grid-cols-3 gap-8">
         {/* Inputs */}
         <div className="lg:col-span-1 space-y-5">
@@ -451,11 +558,11 @@ export default function Compare() {
                 </label>
                 <input
                   id="compare-km"
-                  type="range" min="1000" max="50000" step="1000" value={km}
+                  type="range" min="1000" max="100000" step="1000" value={km}
                   onChange={(e) => setKm(Number(e.target.value))}
-                  className={`w-full ${km > 50000 ? 'slider-overflow' : ''}`}
-                  style={{ ...sliderStyle(km, 1000, 50000), ...(km > 50000 ? { '--slider-fill': 'var(--danger)' } : {}) }}
-                  aria-valuenow={km} aria-valuemin={1000} aria-valuemax={50000}
+                  className={`w-full ${km > 100000 ? 'slider-overflow' : ''}`}
+                  style={{ ...sliderStyle(km, 1000, 100000), ...(km > 100000 ? { '--slider-fill': 'var(--danger)' } : {}) }}
+                  aria-valuenow={km} aria-valuemin={1000} aria-valuemax={100000}
                   aria-valuetext={`${km.toLocaleString()} km`}
                   aria-label={t('tco.annualKm')}
                 />
@@ -469,11 +576,11 @@ export default function Compare() {
                 </label>
                 <input
                   id="compare-years"
-                  type="range" min="1" max="10" step="1" value={years}
+                  type="range" min="1" max="20" step="1" value={years}
                   onChange={(e) => setYears(Number(e.target.value))}
-                  className={`w-full ${years > 10 ? 'slider-overflow' : ''}`}
-                  style={{ ...sliderStyle(years, 1, 10), ...(years > 10 ? { '--slider-fill': 'var(--danger)' } : {}) }}
-                  aria-valuenow={years} aria-valuemin={1} aria-valuemax={10}
+                  className={`w-full ${years > 20 ? 'slider-overflow' : ''}`}
+                  style={{ ...sliderStyle(years, 1, 20), ...(years > 20 ? { '--slider-fill': 'var(--danger)' } : {}) }}
+                  aria-valuenow={years} aria-valuemin={1} aria-valuemax={20}
                   aria-valuetext={`${years} ${t('unit.years')}`}
                   aria-label={t('tco.years')}
                 />
@@ -539,6 +646,10 @@ export default function Compare() {
           {mutation.isError && (
             <GlassCard className="p-4 border-danger/20">
               <p className="text-danger text-sm" role="alert">{t('common.error')}: {mutation.error?.message}</p>
+              <div className="flex flex-wrap gap-3 mt-3">
+                <Link to="/" className="text-sm text-accent hover:underline focus:outline-none focus:ring-2 focus:ring-accent/40 rounded">{t('nav.home')}</Link>
+                <Link to="/car" className="text-sm text-accent hover:underline focus:outline-none focus:ring-2 focus:ring-accent/40 rounded">{t('nav.browse')}</Link>
+              </div>
             </GlassCard>
           )}
 
@@ -601,12 +712,27 @@ export default function Compare() {
                 ))}
               </div>
 
+              {/* Compare actions — prominent, mirroring the TCO Save / Compare row */}
+              <div className="flex flex-wrap gap-3 justify-center pt-2">
+                <AccentButton variant="outline" onClick={handleSaveToHistory}>
+                  {saved ? t('common.savedToHistory') : t('compare.saveToHistory')}
+                </AccentButton>
+                {carIds.length < MAX_COMPARE_CARS && (
+                  <AccentButton variant="outline" onClick={addCar}>
+                    {t('compare.addCar')}
+                  </AccentButton>
+                )}
+              </div>
+
               {/* Summary — three collapsible sections, columns = cars */}
               <GlassCard className="p-6">
                 <div className="flex items-center justify-between mb-4">
                   <h2 className="text-xl font-heading font-bold text-[var(--text-primary)]">{t('compare.summary')}</h2>
-                   <div className="flex gap-2 items-center">
-                     <DropdownMenu
+                    <div className="flex gap-2 items-center">
+                      <AccentButton variant="outline" size="sm" onClick={handleCopyLink}>
+                        {copyDone ? t('compare.copyLinkDone') : t('tco.share')}
+                      </AccentButton>
+                      <DropdownMenu
                        trigger={
                          <button
                            type="button"
@@ -627,15 +753,10 @@ export default function Compare() {
                         <button type="button" className="w-full text-left px-3 py-2 text-sm text-[var(--text-primary)] hover:bg-[var(--bg-elevated)] transition-colors truncate" onClick={handleExportPdf} disabled={pdfState === 'exporting'}>
                           {pdfState === 'exporting' ? '...' : t('compare.exportPdf')}
                         </button>
-                       <button type="button" className="w-full text-left px-3 py-2 text-sm text-[var(--text-primary)] hover:bg-[var(--bg-elevated)] transition-colors truncate" onClick={handleCopyLink}>
-                         {copyDone ? t('compare.copyLinkDone') : t('compare.copyLink')}
-                       </button>
-                       {results && (
-                         <button type="button" className="w-full text-left px-3 py-2 text-sm text-[var(--text-primary)] hover:bg-[var(--bg-elevated)] transition-colors truncate" onClick={handleSaveToHistory}>
-                           {t('compare.saveToHistory')}
-                         </button>
-                       )}
-                     </DropdownMenu>
+                        <button type="button" className="w-full text-left px-3 py-2 text-sm text-[var(--text-primary)] hover:bg-[var(--bg-elevated)] transition-colors truncate" onClick={handleCopyLink}>
+                          {copyDone ? t('compare.copyLinkDone') : t('compare.copyLink')}
+                        </button>
+                      </DropdownMenu>
                    </div>
                 </div>
 
@@ -657,11 +778,15 @@ export default function Compare() {
                         {section.title}
                       </span>
                       <div className="flex gap-3">
-                        {results.map((r, i) => (
-                          <span key={i} className={`text-xs font-mono ${i === bestIdx ? 'accent-text font-semibold' : 'text-[var(--text-secondary)]'}`}>
-                            {formatVND(section.subtotal(r))}
+                        {results.map((r, i) => {
+                          const subtotalVal = section.subtotal(r)
+                          const minIdx = results.findIndex((_, j) => section.subtotal(results[j]) === Math.min(...results.map(rr => section.subtotal(rr))))
+                          return (
+                          <span key={i} className={'text-xs font-mono ' + (i === minIdx ? 'accent-text font-semibold' : 'text-[var(--text-secondary)]')}>
+                            {formatVND(subtotalVal)}
                           </span>
-                        ))}
+                          )
+                        })}
                       </div>
                     </button>
                     <AnimatePresence initial={false}>
@@ -678,88 +803,101 @@ export default function Compare() {
                             <div className="hidden sm:block overflow-x-auto">
                               <table className="w-full text-sm">
                                 <tbody>
-                                  {section.rows.map((item) => (
-                                    <tr key={item.key} className="border-b border-[var(--border-subtle)] last:border-0">
-                                      <td className="py-2 text-[var(--text-secondary)] w-1/3">{item.label}</td>
-                                      {results.map((r, i) => {
-                                        const val = item.get(r)
-                                        const isMLResale = section.key === 'depreciation' && isML(r) && item.key === 'depreciation'
-                                        const isParametricResale = section.key === 'depreciation' && !isML(r) && item.key === 'depreciation'
-                                        const negative = 'isNegative' in item && item.isNegative
-                                        return (
-                                          <td key={i} className="text-right py-2 font-mono align-top">
-                                            <div className={negative ? 'text-danger' : 'text-[var(--text-primary)]'}>
-                                              {formatVND(val)}
-                                            </div>
-                                            {isMLResale && (
-                                              <>
-                                                <div className="inline-flex items-center gap-1 mt-1 text-[10px] text-accent">
-                                                  <span className="w-1.5 h-1.5 rounded-full bg-accent" />
-                                                  {t('compare.mlBadge')}
-                                                </div>
-                                                {r.resale_spread != null && (
-                                                  <div className="text-[10px] text-[var(--text-secondary)]">
-                                                    {formatVND(r.resale - r.resale_spread / 2)} – {formatVND(r.resale + r.resale_spread / 2)}
+                                  {section.rows.map((item) => {
+                                    const minIdx = rowMinIdx(item)
+                                    return (
+                                      <tr key={item.key} className="border-b border-[var(--border-subtle)] last:border-0">
+                                        <td className="py-2 text-[var(--text-secondary)] w-1/3">{item.label}</td>
+                                        {results.map((r, i) => {
+                                          const val = item.get(r, i)
+                                          const isResale = item.key === 'predictedResale'
+                                          const isMLResale = isResale && isML(r)
+                                          const isParametricResale = isResale && !isML(r)
+                                          const isGuaranteeFloor = item.key === 'guaranteeFloor'
+                                          const isMin = i === minIdx
+                                          const valueClass = isMin
+                                            ? 'accent-text font-semibold'
+                                            : item.isCredit
+                                              ? 'text-success'
+                                              : item.isTotal
+                                                ? 'accent-text font-semibold'
+                                                : 'text-[var(--text-primary)]'
+                                          return (
+                                            <td key={i} className="text-right py-2 font-mono align-top">
+                                              <div className={valueClass}>
+                                                {formatVND(val)}
+                                              </div>
+                                              {isResale && (
+                                                <>
+                                                  {isMLResale && (
+                                                    <div className="inline-flex items-center gap-1 mt-1 text-[10px] text-accent">
+                                                      <span className="w-1.5 h-1.5 rounded-full bg-accent" />
+                                                      {t('compare.mlBadge')}
+                                                    </div>
+                                                  )}
+                                                  {isParametricResale && (
+                                                    <div className="inline-flex items-center gap-1 mt-1 text-[10px] text-[var(--text-muted)]">
+                                                      <span className="w-1.5 h-1.5 rounded-full bg-[var(--text-muted)]" />
+                                                      {t('compare.parametricBadge')}
+                                                    </div>
+                                                  )}
+                                                  {r.resale_spread != null && (
+                                                    <div className="text-[10px] text-[var(--text-secondary)]">
+                                                      {formatVND(r.resale - r.resale_spread / 2)} – {formatVND(r.resale + r.resale_spread / 2)}
+                                                    </div>
+                                                  )}
+                                                  {r.resale_note_key && (
+                                                    <div className="text-[10px] text-[var(--text-muted)] mt-0.5">{t(r.resale_note_key)}</div>
+                                                  )}
+                                                </>
+                                              )}
+                                              {isGuaranteeFloor && (
+                                                <>
+                                                  <div className="inline-flex items-center gap-1 mt-1 text-[10px] text-[var(--text-muted)]">
+                                                    <span aria-hidden="true">🔒</span>
+                                                    {t('tco.guaranteeFloorCaption')}
                                                   </div>
-                                                )}
-                                                {r.resale_note_key && (
-                                                  <div className="text-[10px] text-[var(--text-muted)] mt-0.5">{t(r.resale_note_key)}</div>
-                                                )}
-                                                {r.resale_guarantee_floor != null && (
-                                                  <div className="text-[10px] text-[var(--text-secondary)] mt-0.5">
-                                                    <span className="font-medium">{t('tco.guaranteeFloor')}</span>: {formatVND(r.resale_guarantee_floor)}
-                                                    {r.resale_guarantee_floor < r.resale && (
-                                                      <div className="text-[10px] text-[var(--text-muted)] mt-0.5">{t('tco.guaranteeFloorBelowMarket')}</div>
-                                                    )}
-                                                  </div>
-                                                )}
-                                              </>
-                                            )}
-                                            {isParametricResale && (
-                                              <>
-                                                <div className="inline-flex items-center gap-1 mt-1 text-[10px] text-[var(--text-muted)]">
-                                                  <span className="w-1.5 h-1.5 rounded-full bg-[var(--text-muted)]" />
-                                                  {t('compare.parametricBadge')}
-                                                </div>
-                                                {r.resale_note_key && (
-                                                  <div className="text-[10px] text-[var(--text-muted)] mt-0.5">{t(r.resale_note_key)}</div>
-                                                )}
-                                                {r.resale_guarantee_floor != null && (
-                                                  <div className="text-[10px] text-[var(--text-secondary)] mt-0.5">
-                                                    <span className="font-medium">{t('tco.guaranteeFloor')}</span>: {formatVND(r.resale_guarantee_floor)}
-                                                    {r.resale_guarantee_floor < r.resale && (
-                                                      <div className="text-[10px] text-[var(--text-muted)] mt-0.5">{t('tco.guaranteeFloorBelowMarket')}</div>
-                                                    )}
-                                                  </div>
-                                                )}
-                                              </>
-                                            )}
-                                          </td>
-                                        )
-                                      })}
-                                    </tr>
-                                  ))}
+                                                  {r.resale_guarantee_floor != null && r.resale_guarantee_floor < r.resale && (
+                                                    <div className="text-[10px] text-[var(--text-muted)] mt-0.5">{t('tco.guaranteeFloorBelowMarket')}</div>
+                                                  )}
+                                                </>
+                                              )}
+                                            </td>
+                                          )
+                                        })}
+                                      </tr>
+                                    )
+                                  })}
                                 </tbody>
                               </table>
                             </div>
 
                             {/* Mobile stacked rows */}
                             <div className="sm:hidden space-y-2">
-                              {section.rows.map((item) => (
-                                <div key={item.key} className="flex flex-col py-2 border-b border-[var(--border-subtle)] last:border-0">
-                                  <span className="text-xs text-[var(--text-secondary)]">{item.label}</span>
-                                  <div className="flex justify-between gap-2 mt-1">
-                                    {results.map((r, i) => {
-                                      const negative = 'isNegative' in item && item.isNegative
-                                      return (
-                                        <span key={i} className={`text-sm font-mono ${i === bestIdx ? 'accent-text font-semibold' : negative ? 'text-danger' : 'text-[var(--text-primary)]'}`}>
-                                          {formatVND(item.get(r))}
-                                        </span>
-                                      )
-                                    })}
+                              {section.rows.map((item) => {
+                                const minIdx = rowMinIdx(item)
+                                return (
+                                  <div key={item.key} className="flex flex-col py-2 border-b border-[var(--border-subtle)] last:border-0">
+                                    <span className="text-xs text-[var(--text-secondary)]">{item.label}</span>
+                                    <div className="flex justify-between gap-2 mt-1">
+                                      {results.map((r, i) => {
+                                        const val = item.get(r, i)
+                                        const isMin = i === minIdx
+                                        const valueClass = isMin
+                                          ? 'accent-text font-semibold'
+                                          : item.isCredit
+                                            ? 'text-success'
+                                            : 'text-[var(--text-primary)]'
+                                        return (
+                                          <span key={i} className={'text-sm font-mono ' + valueClass}>
+                                            {formatVND(val)}
+                                          </span>
+                                        )
+                                      })}
+                                    </div>
                                   </div>
-                                </div>
-                              ))}
+                                )
+                              })}
                             </div>
                           </div>
                         </motion.div>
@@ -774,7 +912,7 @@ export default function Compare() {
                     <span className="text-accent font-semibold text-sm">{t('tco.netTco')}</span>
                     <div className="flex gap-3">
                       {results.map((resultItem, i) => (
-                        <span key={i} className={`font-mono font-bold ${i === bestIdx ? 'accent-text text-lg' : 'text-[var(--text-primary)]'}`}>
+                        <span key={i} className={'font-mono font-bold ' + (i === bestIdx ? 'accent-text text-lg' : 'text-[var(--text-primary)]')}>
                           {formatVND(resultItem.tco)}
                         </span>
                       ))}
@@ -888,13 +1026,43 @@ export default function Compare() {
 
          {!results && !mutation.isError && !mutation.isPending && (
              <GlassCard className="p-16 text-center">
-               <div className="text-[var(--text-secondary)] text-lg">{t('compare.emptyState')}</div>
+               <div className="text-[var(--text-secondary)] text-lg mb-4">{t('compare.emptyState')}</div>
+               <Link to="/car" className="inline-block text-sm font-medium text-accent hover:underline focus:outline-none focus:ring-2 focus:ring-accent/40 rounded">{t('nav.browse')} →</Link>
             </GlassCard>
            )}
          </div>
-       </div>
+        </div>
 
-       {/* Save to History — moved into the summary dropdown */}
-    </div>
+        {/* C2 — page-specific FAQ (server-rendered, indexable) */}
+        <section className="max-w-3xl mx-auto pt-4">
+          <h2 className="text-2xl md:text-3xl font-heading font-bold text-center text-[var(--text-primary)] mb-8">{t('compare.faqTitle')}</h2>
+          <div className="space-y-3">
+            {[1, 2, 3, 4, 5, 6].map((n) => (
+              <details key={n} className="bg-[var(--glass-bg)]/60 border border-[var(--border-subtle)] rounded-lg p-3">
+                <summary className="cursor-pointer font-medium text-[var(--text-primary)] list-none flex items-center justify-between">
+                  <span>{t(`compare.faqQ${n}`)}</span>
+                  <span className="text-[var(--text-muted)]" aria-hidden="true">▼</span>
+                </summary>
+                <p className="mt-2 text-sm text-[var(--text-secondary)]">{t(`compare.faqA${n}`)}</p>
+              </details>
+            ))}
+          </div>
+        </section>
+        <JsonLd data={{
+          '@context': 'https://schema.org',
+          '@type': 'FAQPage',
+          inLanguage: locale,
+          mainEntity: [1, 2, 3, 4, 5, 6].map(n => ({
+            '@type': 'Question',
+            name: t(`compare.faqQ${n}`),
+            acceptedAnswer: {
+              '@type': 'Answer',
+              text: t(`compare.faqA${n}`),
+            },
+          })),
+        }} />
+
+        {/* Save to History — moved into the summary dropdown */}
+     </div>
   )
 }

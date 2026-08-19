@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion'
 import { api, historyApi, formatVND, stripDiacritics, toTitleCase } from '../lib'
@@ -37,7 +38,8 @@ interface HistoryEntry {
 
 export default function History() {
   const { t, locale } = useI18n()
-  useSeoMetaSafe({ title: `ViDrive - ${t('nav.history')}`, description: t('page.historyDescription') })
+  const navigate = useNavigate()
+  useSeoMetaSafe({ title: `ViDrive - ${t('nav.history')}`, description: t('page.historyDescription'), noindex: true })
   const queryClient = useQueryClient()
   const prefersReduced = useReducedMotion()
   const [searchTerm, setSearchTerm] = useState('')
@@ -55,6 +57,7 @@ export default function History() {
     queryKey: ['history'],
     queryFn: () => historyApi.getHistory(),
     retry: 1,
+    refetchOnMount: true,
   })
 
   // Car catalog — used to render friendly names from internal slugs in saved entries.
@@ -193,7 +196,8 @@ export default function History() {
     return (
       <div className="space-y-8">
         <GlassCard className="p-16 text-center">
-          <div className="text-[var(--text-secondary)] text-lg">{t('history.empty')}</div>
+          <div className="text-[var(--text-secondary)] text-lg mb-6">{t('history.empty')}</div>
+          <AccentButton onClick={() => navigate('/tco')}>{t('history.calculateNew')}</AccentButton>
         </GlassCard>
       </div>
     )

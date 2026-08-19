@@ -122,11 +122,11 @@ export default function PressToEditNumber({
         onBlur={handleBlur}
         aria-label={ariaLabel ?? 'Edit value'}
         aria-invalid={!!error}
-        className={`ml-1 w-20 bg-[rgba(var(--bg-base-rgb),0.5)] border rounded px-1.5 py-0.5 text-sm font-mono text-[var(--accent)] focus:outline-none focus:border-[var(--accent)] transition-colors placeholder-[var(--text-secondary)] ${
-          error
+        className={'ml-1 w-20 bg-[rgba(var(--bg-base-rgb),0.5)] border rounded px-1.5 py-0.5 text-sm font-mono text-[var(--accent)] focus:outline-none focus:border-[var(--accent)] transition-colors placeholder-[var(--text-secondary)] ' +
+          (error
             ? 'border-danger/50 focus:border-danger'
-            : 'border-[var(--border-default)]'
-        }`}
+            : 'border-[var(--border-default)]')
+        }
         onKeyUp={(e) => {
           // Re-clamp live preview so the spinner respects bounds as the user types.
           const v = Number(e.currentTarget.value)

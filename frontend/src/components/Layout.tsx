@@ -120,8 +120,20 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             ))}
           </nav>
 
-          {/* Language toggle + theme toggle + mobile menu */}
-          <div className="flex items-center gap-3">
+           {/* Search entry + Language toggle + theme toggle + mobile menu */}
+           <div className="flex items-center gap-3">
+             <Link
+               to="/car"
+               className="p-2 rounded-lg border transition-colors hidden sm:block"
+               style={{ borderColor: 'var(--border-default)', backgroundColor: 'rgba(0,0,0,0.2)', color: 'var(--text-secondary)' }}
+               aria-label={t('a11y.search')}
+               title={t('a11y.search')}
+             >
+               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                 <circle cx="11" cy="11" r="8" /><path d="M21 21l-4.35-4.35" />
+               </svg>
+             </Link>
+
             <div className="flex items-center gap-1 p-1 rounded-lg border" style={{ borderColor: 'var(--border-default)', backgroundColor: 'rgba(0,0,0,0.2)' }} role="group" aria-label={t('a11y.language')}>
               <button
                 onClick={() => setLocale('en')}
@@ -242,7 +254,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       ) : (
         <motion.main
           key={location.pathname}
-          initial={prefersReduced ? undefined : { opacity: 0, y: 12 }}
+          initial={prefersReduced ? undefined : { y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           exit={prefersReduced ? undefined : { opacity: 0, y: -8 }}
           transition={prefersReduced ? { duration: 0 } : { duration: 0.35, ease: [0.33, 1, 0.68, 1] }}

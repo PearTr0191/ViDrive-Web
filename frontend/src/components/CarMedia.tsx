@@ -20,13 +20,19 @@ export interface CarMediaProps {
   /** Current theme for fallback styling. */
   theme?: 'dark' | 'light'
   /** Optional car data for alt text (brand + model). */
-  car?: { brand?: string; model?: string; id?: string }
+  car?: { brand?: string; model?: string; id?: string; segment?: string; type?: string }
 }
 
-// Resolve the static asset URL for a car image. Vite serves /public as root,
+// Resolve the static asset URL(s) for a car image. Vite serves /public as root,
 // and `import.meta.env.BASE_URL` keeps it correct under subpath deploys.
 function carImageUrl(carId: string): string {
   return `${import.meta.env.BASE_URL}cars/${encodeURIComponent(carId)}.webp`
+}
+
+// 2x variant for HiDPI / retina displays (generated at build time by
+// scripts/generate-car-image-variants.mjs).
+function carImageUrl2x(carId: string): string {
+  return `${import.meta.env.BASE_URL}cars/${encodeURIComponent(carId)}@2x.webp`
 }
 
 export default function CarMedia({
@@ -43,8 +49,10 @@ export default function CarMedia({
 }: CarMediaProps) {
   const [failed, setFailed] = useState(false)
   const url = useMemo(() => carImageUrl(carId), [carId])
+  const url2x = useMemo(() => carImageUrl2x(carId), [carId])
   const segKey = mapSegment(type, segment)
-  const altText = `${carDisplayName(car ?? { id: carId })} right-side profile`
+  // C13 — descriptive, per-car alt text (brand + model + segment + powertrain)
+  const altText = `${carDisplayName(car ?? { id: carId })} ${car?.segment ?? ''} ${car?.type ?? ''} side profile`.trim()
 
   const baseStyle: React.CSSProperties = aspect ? { aspectRatio: aspect } : {}
 
@@ -80,7 +88,12 @@ export default function CarMedia({
     >
       <img
         src={url}
+        srcSet={`${url} 1x, ${url2x} 2x`}
+        width={640}
+        height={360}
         alt={altText}
+        // E9 — reserve layout space so images never cause cumulative layout shift
+        sizes="(max-width: 768px) 100vw, 320px"
         loading={priority ? 'eager' : 'lazy'}
         fetchPriority={priority ? 'high' : 'low'}
         decoding="async"

@@ -48,6 +48,8 @@ export default function DropdownMenu({ trigger, children, className = '' }: Drop
     }
   }, [open])
 
+  const portalTarget = typeof document !== 'undefined' ? document.body : null
+
   return (
     <>
       <div
@@ -57,7 +59,7 @@ export default function DropdownMenu({ trigger, children, className = '' }: Drop
       >
         {trigger}
       </div>
-      {createPortal(
+      {portalTarget && createPortal(
         <AnimatePresence>
           {open && coords && (
             <motion.div
@@ -74,7 +76,7 @@ export default function DropdownMenu({ trigger, children, className = '' }: Drop
             </motion.div>
           )}
         </AnimatePresence>,
-        document.body
+        portalTarget
       )}
     </>
   )

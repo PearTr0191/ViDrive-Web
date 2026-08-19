@@ -292,7 +292,7 @@ def get_common_params(cars):
     if years > 50:
         raise ViDriveError(t('error_years_too_large', years=years))
 
-    ratio = (ask(t('prompt_city_ratio'), "30", is_num=True) or 0.0) / 100.0
+    ratio = (ask(t('prompt_city_ratio'), "60", is_num=True) or 0.0) / 100.0
     if ratio < 0 or ratio > 1:
         ratio = 0.3
 
@@ -395,7 +395,7 @@ Default language: Vietnamese. Use --lang en for English.
     parser.add_argument("--km", type=float, default=15000, help="Annual kilometers (default: 15000)")
     parser.add_argument("--years", type=int, default=5, help="Years of ownership (default: 5)")
     parser.add_argument("--area", type=int, choices=[1, 2, 3], default=None, help="Area tier (1=Central, 2=Provincial, 3=Rural)")
-    parser.add_argument("--city-ratio", type=float, default=30, help="City driving percent, 0-100 (default: 30)")
+    parser.add_argument("--city-ratio", type=float, default=60, help="City driving percent, 0-100 (default: 60)")
     parser.add_argument("--opp-cost", action="store_true", help="Include opportunity cost")
     parser.add_argument("--verbose", action="store_true", help="Show calculation breakdown with formulas")
     parser.add_argument("--lang", choices=["en", "vi"], default=None, help="Language (en/vi)")

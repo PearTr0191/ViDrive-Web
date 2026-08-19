@@ -917,7 +917,8 @@ def _calculate_tco_uncertainty(reg: dict, fuel: float, maint: float,
     return combined
 
 
-def _zero_tco_dict(car: dict, city: str, km: float, purchase_date=None, area=None) -> dict:
+def _zero_tco_dict(car: dict, city: str, km: float, purchase_date=None, area=None,
+                   include_parking_toll: bool = True) -> dict:
     """TCO with a 0-year horizon: acquisition (on-road) only.
 
     No operating costs accrue and resale equals price (no ownership period),
@@ -966,7 +967,7 @@ def _zero_tco_dict(car: dict, city: str, km: float, purchase_date=None, area=Non
 
 
 def get_tco(car, city, km, years=5, purchase_date=None, area=None, city_ratio=0.0,
-            rush_hour=False, include_insurance=False):
+            rush_hour=False, include_insurance=False, include_parking_toll=True):
     """Master TCO: Acquisition + Running - Resale
 
     `rush_hour=True` swaps in the per-powertrain rush-hour city multiplier from
@@ -978,7 +979,8 @@ def get_tco(car, city, km, years=5, purchase_date=None, area=None, city_ratio=0.
     frontend can disclose which toggles shaped the prediction.
     """
     if years <= 0:
-        return _zero_tco_dict(car, city, km, purchase_date, area)
+        return _zero_tco_dict(car, city, km, purchase_date, area,
+                              include_parking_toll=include_parking_toll)
     price = car["price"]
     reg = calculate_registration(price, city, car["type"], purchase_date, area=area, seats=car.get("seats", 5))
     # "Giá lăn bánh" (on-road price) = MSRP + reg_tax + plate + inspection + year-1
@@ -1005,6 +1007,11 @@ def get_tco(car, city, km, years=5, purchase_date=None, area=None, city_ratio=0.
 
     # Parking & Toll estimates (scaled by city/highway split; metro sub-tier via city)
     parking_toll = calculate_parking_toll(area or get_area_tier(city), years, city_ratio, city=city)
+    if not include_parking_toll:
+        parking_toll = {
+            "monthly_parking": 0, "monthly_toll": 0,
+            "monthly_total": 0, "total_over_period": 0,
+        }
 
     resale_result = calculate_resale(
         price,
@@ -1159,7 +1166,8 @@ def calculate_loan_schedule(on_road_price: float, down_pct: float, annual_rate: 
     }
 
 
-def get_tco_yearly(car: dict, city: str, km: float, years: int = 5, purchase_date=None, area=None,                    city_ratio: float = 0.0) -> tuple[list[dict], list[str], int | None]:
+def get_tco_yearly(car: dict, city: str, km: float, years: int = 5, purchase_date=None, area=None,
+                  city_ratio: float = 0.0, include_parking_toll: bool = True) -> tuple[list[dict], list[str], int | None]:
     """Return per-year TCO breakdown for chart visualization.
 
     Produces a non-linear cumulative cost curve by:
@@ -1193,7 +1201,7 @@ def get_tco_yearly(car: dict, city: str, km: float, years: int = 5, purchase_dat
     age0 = max(0, purchase_year - model_year)
 
     parking_toll = calculate_parking_toll(area, 1, city_ratio, city=city)
-    annual_parking = parking_toll["monthly_total"] * 12
+    annual_parking = parking_toll["monthly_total"] * 12 if include_parking_toll else 0
 
     # Total maintenance over the full period (matches get_tco exactly), then
     # distribute per-year with 15% annual-escalation factors so the chart curve

@@ -12,8 +12,24 @@
     <link rel="preload" as="image" href="/hero/lucid-light.jpg" />
     <link rel="preload" as="image" href="/hero/lucid-dark.jpg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#0A0A0F" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#F8F7F4" media="(prefers-color-scheme: light)" />
+    <!-- Pre-paint theme: set light/dark + color-scheme before first paint to avoid FOUC/CLS -->
+    <script>
+      (function () {
+        try {
+          var t = localStorage.getItem('vidrive-theme');
+          if (t !== 'light' && t !== 'dark') {
+            t = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+          }
+          var d = document.documentElement;
+          d.classList.add(t);
+          d.style.colorScheme = t;
+        } catch (e) {}
+      })();
+    </script>
     <title>ViDrive — Tính chi phí sở hữu ô tô</title>
-    <meta name="description" content="Tính chi phí sở hữu ô tô (TCO) Việt Nam: so sánh xe điện, hybrid, xăng; định giá xe cũ; ước tính lăn bánh &amp; khấu hao. Minh bạch, tức thì. EV vs ICE TCO calculator.">
+    <meta name="description" content="Tính chi phí sở hữu ô tô (TCO) Việt Nam: so sánh xe điện, hybrid, xăng; định giá xe cũ. Minh bạch, tức thì.">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="dns-prefetch" href="https://fonts.googleapis.com">
@@ -45,7 +61,7 @@
   gtag('config', 'G-Y3QGDZ7R04');
 </script>
   <body>
-    <div id="root"></div>
+    <div id="app"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

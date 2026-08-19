@@ -15,7 +15,7 @@ const SEGMENTS = [
 
 export default function Wizard() {
   const { t, locale } = useI18n()
-  useSeoMetaSafe({ title: `ViDrive - ${t('nav.wizard')}`, description: t('page.wizardDescription') })
+  useSeoMetaSafe({ title: `ViDrive - ${t('nav.wizard')}`, description: t('page.wizardDescription'), noindex: true })
   const navigate = useNavigate()
   const [step, setStep] = useState(0)
   const [formData, setFormData] = useState({
@@ -160,7 +160,7 @@ export default function Wizard() {
                   i <= step ? 'accent-gradient' : 'bg-[var(--bg-elevated)]'
                 }`}
               />
-              <span className={`text-xs font-medium ${i <= step ? 'text-accent' : 'text-[var(--text-secondary)]'}`}>
+              <span className={'text-xs font-medium ' + (i <= step ? 'text-accent' : 'text-[var(--text-secondary)]')}>
                 {t(s.labelKey)}
               </span>
             </div>
@@ -188,7 +188,7 @@ export default function Wizard() {
                   placeholder={t('wizard.brandPlaceholder')}
                   value={formData.brand}
                   onChange={(e) => updateField('brand', e.target.value)}
-                   className={`w-full px-4 py-3 bg-[rgba(var(--bg-base-rgb),0.5)] border rounded-xl text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:border-accent/50 transition-colors ${fieldErrors.brand ? 'border-danger' : 'border-[var(--border-default)]'}`}
+                    className={'w-full px-4 py-3 bg-[rgba(var(--bg-base-rgb),0.5)] border rounded-xl text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:border-accent/50 transition-colors ' + (fieldErrors.brand ? 'border-danger' : 'border-[var(--border-default)]')}
                    aria-invalid={!!fieldErrors.brand}
                    aria-describedby={fieldErrors.brand ? 'error-brand' : undefined}
                  />
@@ -202,7 +202,7 @@ export default function Wizard() {
                   placeholder={t('wizard.modelPlaceholder')}
                   value={formData.model}
                   onChange={(e) => updateField('model', e.target.value)}
-                   className={`w-full px-4 py-3 bg-[rgba(var(--bg-base-rgb),0.5)] border rounded-xl text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:border-accent/50 transition-colors ${fieldErrors.model ? 'border-danger' : 'border-[var(--border-default)]'}`}
+                    className={'w-full px-4 py-3 bg-[rgba(var(--bg-base-rgb),0.5)] border rounded-xl text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:border-accent/50 transition-colors ' + (fieldErrors.model ? 'border-danger' : 'border-[var(--border-default)]')}
                    aria-invalid={!!fieldErrors.model}
                    aria-describedby={fieldErrors.model ? 'error-model' : undefined}
                  />
@@ -221,7 +221,7 @@ export default function Wizard() {
                   placeholder={t('wizard.pricePlaceholder')}
                   value={formData.price}
                   onChange={(e) => updateField('price', e.target.value)}
-                   className={`w-full px-4 py-3 bg-[rgba(var(--bg-base-rgb),0.5)] border rounded-xl text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:border-accent/50 transition-colors ${fieldErrors.price ? 'border-danger' : 'border-[var(--border-default)]'}`}
+                    className={'w-full px-4 py-3 bg-[rgba(var(--bg-base-rgb),0.5)] border rounded-xl text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:border-accent/50 transition-colors ' + (fieldErrors.price ? 'border-danger' : 'border-[var(--border-default)]')}
                    aria-invalid={!!fieldErrors.price}
                    aria-describedby={fieldErrors.price ? 'error-price' : undefined}
                  />
@@ -253,7 +253,7 @@ export default function Wizard() {
                   step="0.1"
                   value={formData.consumption}
                   onChange={(e) => updateField('consumption', e.target.value)}
-                   className={`w-full px-4 py-3 bg-[rgba(var(--bg-base-rgb),0.5)] border rounded-xl text-[var(--text-primary)] focus:outline-none focus:border-accent/50 transition-colors ${fieldErrors.consumption ? 'border-danger' : 'border-[var(--border-default)]'}`}
+                    className={'w-full px-4 py-3 bg-[rgba(var(--bg-base-rgb),0.5)] border rounded-xl text-[var(--text-primary)] focus:outline-none focus:border-accent/50 transition-colors ' + (fieldErrors.consumption ? 'border-danger' : 'border-[var(--border-default)]')}
                    aria-invalid={!!fieldErrors.consumption}
                    aria-describedby={fieldErrors.consumption ? 'error-consumption' : undefined}
                  />
@@ -266,7 +266,7 @@ export default function Wizard() {
                   type="number"
                   value={formData.annual_maintenance}
                   onChange={(e) => updateField('annual_maintenance', e.target.value)}
-                   className={`w-full px-4 py-3 bg-[rgba(var(--bg-base-rgb),0.5)] border rounded-xl text-[var(--text-primary)] focus:outline-none focus:border-accent/50 transition-colors ${fieldErrors.annual_maintenance ? 'border-danger' : 'border-[var(--border-default)]'}`}
+                    className={'w-full px-4 py-3 bg-[rgba(var(--bg-base-rgb),0.5)] border rounded-xl text-[var(--text-primary)] focus:outline-none focus:border-accent/50 transition-colors ' + (fieldErrors.annual_maintenance ? 'border-danger' : 'border-[var(--border-default)]')}
                    aria-invalid={!!fieldErrors.annual_maintenance}
                    aria-describedby={fieldErrors.annual_maintenance ? 'error-annual-maint' : undefined}
                  />
@@ -281,7 +281,7 @@ export default function Wizard() {
                   max="9"
                   value={formData.seats}
                   onChange={(e) => updateField('seats', e.target.value)}
-                   className={`w-full px-4 py-3 bg-[rgba(var(--bg-base-rgb),0.5)] border rounded-xl text-[var(--text-primary)] focus:outline-none focus:border-accent/50 transition-colors ${fieldErrors.seats ? 'border-danger' : 'border-[var(--border-default)]'}`}
+                    className={'w-full px-4 py-3 bg-[rgba(var(--bg-base-rgb),0.5)] border rounded-xl text-[var(--text-primary)] focus:outline-none focus:border-accent/50 transition-colors ' + (fieldErrors.seats ? 'border-danger' : 'border-[var(--border-default)]')}
                    aria-invalid={!!fieldErrors.seats}
                    aria-describedby={fieldErrors.seats ? 'error-seats' : undefined}
                  />

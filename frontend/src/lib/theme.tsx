@@ -13,11 +13,13 @@ const ThemeContext = createContext<ThemeContextValue | null>(null)
 const STORAGE_KEY = 'vidrive-theme'
 
 function getInitialTheme(): Theme {
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY)
-    if (stored === 'light' || stored === 'dark') return stored
-  } catch {
-    // localStorage unavailable
+  if (typeof localStorage !== 'undefined') {
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY)
+      if (stored === 'light' || stored === 'dark') return stored
+    } catch {
+      // localStorage unavailable
+    }
   }
   return 'light'
 }

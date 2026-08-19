@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom'
+import { Link, useLoaderData } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { useRef } from 'react'
 import AccentButton from '../components/AccentButton'
@@ -6,7 +6,7 @@ import GlassCard from '../components/ui/GlassCard'
 import AnimatedCounter from '../components/ui/AnimatedCounter'
 import Skeleton from '../components/ui/Skeleton'
 import { GridPattern } from '../components/AutomotivePatterns'
-import { api, formatVND } from '../lib'
+import { api, formatVND, type CarInfo } from '../lib'
 import { useI18n } from '../lib/i18n'
 import { useTheme } from '../lib/theme'
 import { useSeoMetaSafe, JsonLd, SITE_URL } from '../lib/seo'
@@ -26,16 +26,20 @@ export default function Landing() {
   // (light theme "fades away"); `screen` stayed visible (dark was perfect). The container
   // is now a plain <div> (no opacity/will-change) so the blend reaches the real backdrop.
 
+  const loaderData = useLoaderData() as { cars?: CarInfo[]; config?: any }
+
   const { data: config, isLoading: isConfigLoading } = useQuery({
     queryKey: ['config'],
     queryFn: () => api.getConfig(),
     retry: 1,
+    initialData: loaderData?.config ?? undefined,
   })
 
   const { data: cars, isError: isCarsError, isLoading: isCarsLoading, refetch: refetchCars } = useQuery({
     queryKey: ['cars'],
     queryFn: () => api.getCars(),
     retry: 1,
+    initialData: loaderData?.cars ?? undefined,
   })
 
   const stats = [
@@ -76,7 +80,7 @@ export default function Landing() {
         '@context': 'https://schema.org',
         '@type': 'FAQPage',
         inLanguage: locale,
-        mainEntity: [1, 2, 3, 4, 5, 6].map(n => ({
+        mainEntity: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(n => ({
           '@type': 'Question',
           name: t(`landing.faqQ${n}`),
           acceptedAnswer: {
@@ -99,6 +103,19 @@ export default function Landing() {
         },
         inLanguage: locale,
         }} />
+      {/* C10 — HowTo structured data */}
+      <JsonLd data={{
+        '@context': 'https://schema.org',
+        '@type': 'HowTo',
+        name: t('landing.howItWorks'),
+        inLanguage: locale,
+        step: steps.map((step, idx) => ({
+          '@type': 'HowToStep',
+          position: idx + 1,
+          name: t(step.titleKey),
+          text: t(step.descKey, step.count !== undefined ? { count: step.count } : undefined),
+        })),
+      }} />
       {/* Hero Section */}
       <section ref={heroRef} className="relative min-h-[82vh] flex flex-col items-center justify-center text-center overflow-hidden py-16">
         {/* Lucid Air back-layer — theme-adaptive.
@@ -129,7 +146,7 @@ export default function Landing() {
             decoding="async"
             className="absolute inset-x-0 top-0 h-[75vh] w-full object-contain scale-x-[1.35] scale-y-[1.2] origin-bottom translate-y-[8%]"
             style={{
-              opacity: theme === 'light' ? 0.12 : 0,
+              opacity: theme === 'light' ? 0.18 : 0,
               mixBlendMode: 'multiply',
               transition: 'none',
             }}
@@ -170,20 +187,20 @@ export default function Landing() {
           {/* J — what's-new badge */}
           <motion.div
             className="mb-6"
-            initial={{ opacity: 0, y: 12 }}
+            initial={{ y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.05 }}
           >
             <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-medium border border-accent/30 text-accent bg-accent/10">
               <span className="w-1.5 h-1.5 rounded-full bg-accent" aria-hidden="true" />
-              {t('landing.whatsNew').replace('{date}', '2026-08')}
+              {t('landing.whatsNew').replace('{date}', loaderData?.config?.last_updated ? String(loaderData.config.last_updated).slice(0, 7) : '2026-08')}
             </span>
           </motion.div>
 
           <motion.h1
             className="text-5xl md:text-7xl font-heading font-bold mb-6 text-balance"
             style={{ color: 'var(--text-primary)' }}
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.1 }}
           >
@@ -194,7 +211,7 @@ export default function Landing() {
           <motion.p
             className="text-lg md:text-xl max-w-2xl mx-auto mb-10 text-balance"
             style={{ color: 'var(--text-secondary)' }}
-            initial={{ opacity: 0 }}
+            initial={{ opacity: 1 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.3, duration: 0.6 }}
           >
@@ -203,17 +220,31 @@ export default function Landing() {
 
           <motion.div
             className="flex gap-4 justify-center flex-wrap"
-            initial={{ opacity: 0, y: 10 }}
+            initial={{ y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.5, duration: 0.6 }}
           >
-            <Link to="/tco">
+            <Link to="/tco?car=vf8_2026">
               <AccentButton size="lg">{t('landing.ctaCalculate')}</AccentButton>
             </Link>
-            <Link to="/compare">
+            <Link to="/compare?car0=vf8_2026&car1=vios_2026">
               <AccentButton variant="outline" size="lg">{t('landing.ctaCompare')}</AccentButton>
             </Link>
           </motion.div>
+
+          {/* D5 — trust above the fold */}
+          <div className="flex flex-wrap justify-center gap-3 mt-8">
+            {[1, 2, 3, 4].map((n) => (
+              <span key={n} className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium border border-[var(--border-subtle)] text-[var(--text-secondary)]">
+                <span className="text-accent" aria-hidden="true">✓</span>
+                {t(`landing.trust${n}`)}
+              </span>
+            ))}
+          </div>
+          {/* D16 — freshness signal */}
+          <p className="mt-4 text-xs text-[var(--text-muted)]">
+            {t('landing.dataUpdated', { date: loaderData?.config?.last_updated ? String(loaderData.config.last_updated).slice(0, 7) : '2026-08' })}
+          </p>
         </div>
       </section>
 
@@ -242,7 +273,7 @@ export default function Landing() {
           <GlassCard
             key={idx}
             className="p-6 text-center group"
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             transition={{ duration: 0.5, delay: idx * 0.1 }}
@@ -269,7 +300,7 @@ export default function Landing() {
           <GlassCard className="p-6" initial={{ opacity: 0, y: 16 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}>
             <h3 className="text-lg font-heading font-semibold text-[var(--text-primary)] mb-1">{t('landing.sampleTitle')}</h3>
             <p className="text-sm text-[var(--text-secondary)] mb-4">{t('landing.sampleSub')}</p>
-            <Link to="/tco?car=vios_2026&city=hanoi&km=15000&years=5&ratio=30">
+            <Link to="/tco?car=vios_2026&city=hanoi&km=15000&years=5&ratio=60">
               <AccentButton size="sm">{t('landing.ctaCalculate')}</AccentButton>
             </Link>
           </GlassCard>
@@ -280,7 +311,7 @@ export default function Landing() {
                 const car = cars?.find(c => c.id === id)
                 if (!car) return null
                 return (
-                  <Link key={id} to={`/tco?car=${id}&city=hanoi&km=15000&years=5&ratio=30`} className="block">
+                  <Link key={id} to={`/tco?car=${id}&city=hanoi&km=15000&years=5&ratio=60`} className="block">
                     <GlassCard className="p-3 group">
                       <div className="font-medium text-[var(--text-primary)]">{car.brand} {car.model}</div>
                       <div className="text-xs text-[var(--text-secondary)]">{car.segment} · {car.type}</div>
@@ -294,19 +325,16 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* J — trust badges */}
-      <section className="flex flex-wrap justify-center gap-3 text-center">
-        {[1, 2, 3, 4].map((n) => (
-          <span key={n} className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium border border-[var(--border-subtle)] text-[var(--text-secondary)]">
-            <span className="text-accent" aria-hidden="true">✓</span>
-            {t(`landing.trust${n}`)}
-          </span>
-        ))}
+      {/* J — single trust badge on its own line */}
+      <section className="flex flex-wrap justify-center gap-3 text-center mt-6">
+        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium border border-[var(--border-subtle)] text-[var(--text-secondary)]">
+          <span className="text-accent" aria-hidden="true">✓</span>
+          {t('landing.trust4')}
+        </span>
       </section>
 
-
-                  {/* How It Works — Vertical Timeline (moved above FAQ for the onboarding arc) */
-      }<section className="max-w-3xl mx-auto">
+                  {/* How It Works — Vertical Timeline (moved above FAQ for the onboarding arc) */}
+      <section className="max-w-3xl mx-auto">
         <motion.h2
           className="text-3xl md:text-4xl font-heading font-bold text-center mb-16"
           style={{ color: 'var(--text-primary)' }}
@@ -363,7 +391,7 @@ export default function Landing() {
       <section className="max-w-3xl mx-auto">
         <h2 className="text-2xl md:text-3xl font-heading font-bold text-center text-[var(--text-primary)] mb-8">{t('landing.faqTitle')}</h2>
         <div className="space-y-3">
-          {[1, 2, 3, 4, 5, 6].map((n) => (
+          {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((n) => (
             <details key={n} className="bg-[var(--glass-bg)]/60 border border-[var(--border-subtle)] rounded-lg p-3">
               <summary className="cursor-pointer font-medium text-[var(--text-primary)] list-none flex items-center justify-between">
                 <span>{t(`landing.faqQ${n}`)}</span>

@@ -40,16 +40,37 @@ export default function Footer() {
       }}
     >
       <div className="container mx-auto px-6 py-12">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-10">
           {/* Brand */}
           <div className="space-y-4">
             <Logo height={30} />
             <p className="text-sm max-w-xs" style={{ color: 'var(--text-secondary)' }}>
               {t('footer.tagline')}
             </p>
+            <Link
+              to="/tco"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-heading font-semibold accent-gradient text-[var(--bg-base)] hover:shadow-lg hover:shadow-accent/30 transition-all w-fit"
+            >
+              {t('landing.ctaCalculate')}
+            </Link>
             <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
               {t('footer.copyright')}
             </p>
+          </div>
+
+          {/* Explore */}
+          <div className="space-y-4">
+            <h3 className="text-sm font-heading font-semibold" style={{ color: 'var(--text-primary)' }}>
+              {t('footer.exploreTitle')}
+            </h3>
+            <nav className="flex flex-col gap-2 text-sm" style={{ color: 'var(--text-secondary)' }} aria-label={t('footer.exploreTitle')}>
+              <Link to="/tco" className="hover:text-accent transition-colors w-fit">{t('nav.tco')}</Link>
+              <Link to="/compare" className="hover:text-accent transition-colors w-fit">{t('nav.compare')}</Link>
+              <Link to="/car" className="hover:text-accent transition-colors w-fit">{t('nav.browse')}</Link>
+              <Link to="/wizard" className="hover:text-accent transition-colors w-fit">{t('nav.wizard')}</Link>
+              <Link to="/guides" className="hover:text-accent transition-colors w-fit">{t('nav.guides')}</Link>
+              <Link to="/methodology" className="hover:text-accent transition-colors w-fit">{t('nav.methodology')}</Link>
+            </nav>
           </div>
 
           {/* Contact */}

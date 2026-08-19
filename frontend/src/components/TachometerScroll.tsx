@@ -46,8 +46,9 @@ export default function TachometerScroll({ className = '', radius = 16.1 }: Tach
   const scrollStartY = useRef(0)
   const progressRef = useRef(initialProgress)
 
+  const winHeight = typeof window !== 'undefined' ? window.innerHeight : 0
   const thumbY = useMotionValue(
-    initialProgress * (window.innerHeight - THUMB_SIZE - TRACK_PADDING * 2) + TRACK_PADDING
+    initialProgress * (winHeight - THUMB_SIZE - TRACK_PADDING * 2) + TRACK_PADDING
   )
 
   // Track scroll directly — no JS spring, so progress always matches the
@@ -57,7 +58,7 @@ export default function TachometerScroll({ className = '', radius = 16.1 }: Tach
     if (isDraggingRef.current) return
     setProgress(latest)
     progressRef.current = latest
-    const trackTravel = window.innerHeight - THUMB_SIZE - TRACK_PADDING * 2
+  const trackTravel = winHeight - THUMB_SIZE - TRACK_PADDING * 2
     thumbY.set(latest * trackTravel + TRACK_PADDING)
   })
 
@@ -70,7 +71,7 @@ export default function TachometerScroll({ className = '', radius = 16.1 }: Tach
   const endAngle = Math.min(progress * SWEEP + START_ANGLE, START_ANGLE + SWEEP)
   const arcPath = describeArc(CENTER, CENTER, radius, START_ANGLE, endAngle)
 
-  const trackTravel = window.innerHeight - THUMB_SIZE - TRACK_PADDING * 2
+  const trackTravel = winHeight - THUMB_SIZE - TRACK_PADDING * 2
 
   const handlePointerDown = useCallback((e: React.PointerEvent) => {
     isDraggingRef.current = true

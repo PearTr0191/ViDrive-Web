@@ -5,7 +5,7 @@ import Breadcrumbs from '../components/Breadcrumbs'
 
 export default function Privacy() {
   const { t } = useI18n()
-  useSeoMetaSafe({ title: `ViDrive - ${t('privacy.title')}` })
+  useSeoMetaSafe({ title: `ViDrive - ${t('privacy.title')}`, description: t('page.privacyDescription') })
   return (
     <div className="max-w-3xl mx-auto">
       <Breadcrumbs />

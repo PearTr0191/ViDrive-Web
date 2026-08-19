@@ -4,7 +4,13 @@ import { useLocation } from 'react-router-dom'
 import { useI18n } from './i18n'
 
 const SITE_NAME = 'ViDrive'
-const SITE_URL = 'https://vidrive-web.pages.dev'
+// Single source of truth for the canonical domain. Override at build time via
+// VITE_SITE_URL (e.g. production domain); defaults to the current deploy host.
+const SITE_URL = (import.meta.env.VITE_SITE_URL as string | undefined)?.replace(/\/$/, '') ||
+  'https://vidrive-web.pages.dev'
+const DEFAULT_OG_IMAGE = `${SITE_URL}/og-tco.png`
+const DEFAULT_OG_IMAGE_ALT =
+  'ViDrive — công cụ tính tổng chi phí sở hữu ô tô (TCO) minh bạch tại Việt Nam: so sánh xe điện, hybrid và xăng'
 const DEFAULT_DESCRIPTION =
   'Tính chi phí sở hữu ô tô (TCO) tại Việt Nam: so sánh xe điện, hybrid và xăng, ' +
   'định giá xe cũ, ước tính lăn bánh, khấu hao, bảo dưỡng và tài chính. ' +
@@ -17,6 +23,7 @@ export interface SeoMetaInput {
   noindex?: boolean
   ogImage?: string
   ogImageAlt?: string
+  ogType?: string
   [key: string]: unknown
 }
 
@@ -24,7 +31,8 @@ export interface SeoMetaInput {
  * Hook to set per-route SEO meta tags. Call at the top level of any page component.
  *
  * Uses the i18n `t` function to resolve title/description from `page.*` keys,
- * falling back to sensible defaults. Also injects Open Graph and canonical tags.
+ * falling back to sensible defaults. Also injects Open Graph, Twitter, canonical,
+ * and hreflang (self-referential vi + x-default) tags.
  */
 export function useSeoMetaSafe(meta: SeoMetaInput): void {
   const { t, locale } = useI18n()
@@ -37,6 +45,7 @@ export function useSeoMetaSafe(meta: SeoMetaInput): void {
     meta.description ?? (resolvedDesc === 'page.description' ? DEFAULT_DESCRIPTION : resolvedDesc)
   const canonicalPath = meta.canonical ?? location.pathname
   const canonicalUrl = `${SITE_URL}${canonicalPath}`
+  const ogImage = meta.ogImage ?? DEFAULT_OG_IMAGE
 
   useSeoMeta({
     title: String(title),
@@ -45,15 +54,25 @@ export function useSeoMetaSafe(meta: SeoMetaInput): void {
     ogDescription: String(description),
     ogSiteName: SITE_NAME,
     ogUrl: canonicalUrl,
+    ogImage,
+    ogImageAlt: meta.ogImageAlt ?? DEFAULT_OG_IMAGE_ALT,
+    ogType: meta.ogType ?? 'website',
     ogLocale: locale === 'vi' ? 'vi_VN' : 'en_US',
     twitterCard: 'summary_large_image',
-    ...(meta.ogImage ? { ogImage: meta.ogImage, twitterImage: meta.ogImage } : {}),
-    ...(meta.ogImageAlt ? { ogImageAlt: meta.ogImageAlt } : {}),
+    twitterTitle: String(title),
+    twitterDescription: String(description),
+    twitterImage: ogImage,
     ...(meta.noindex ? { robots: 'noindex,nofollow' } : {}),
   } as Record<string, unknown>)
 
+  // Canonical + self-referential hreflang (vi + x-default). True per-URL
+  // EN/VI hreflang alternates require URL-based locale routing (see audit C14).
   useHead({
-    link: [{ rel: 'canonical', href: canonicalUrl }],
+    link: [
+      { rel: 'canonical', href: canonicalUrl },
+      { rel: 'alternate', hreflang: 'vi', href: canonicalUrl },
+      { rel: 'alternate', hreflang: 'x-default', href: canonicalUrl },
+    ],
   })
 }
 

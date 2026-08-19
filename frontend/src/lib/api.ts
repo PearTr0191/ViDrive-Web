@@ -13,7 +13,7 @@ async function safeFetch(input: RequestInfo, init?: RequestInit): Promise<Respon
   try {
     return await fetch(input, init)
   } catch (err: any) {
-    if (!navigator.onLine) {
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
       throw new OfflineError('You appear to be offline. Some features may be unavailable.')
     }
     if (err && err.name === 'TypeError' && err.message === 'Failed to fetch') {
@@ -106,6 +106,7 @@ export interface TcoResponse {
    show_opp_cost: boolean
   rush_hour?: boolean
   include_insurance?: boolean
+  include_parking_toll?: boolean
   result: TcoResult
 }
 
@@ -236,6 +237,7 @@ export const api = {
     show_opp_cost?: boolean
     rush_hour?: boolean
     include_insurance?: boolean
+    include_parking_toll?: boolean
   }): Promise<TcoResponse> {
     const res = await safeFetch(`${API_BASE}/api/tco/calculate`, {
       method: 'POST',
@@ -257,6 +259,7 @@ export const api = {
     show_opp_cost?: boolean
     rush_hour?: boolean
     include_insurance?: boolean
+    include_parking_toll?: boolean
   }): Promise<{ results: TcoResult[]; car_ids: string[] }> {
     const res = await safeFetch(`${API_BASE}/api/tco/compare`, {
       method: 'POST',
@@ -304,6 +307,7 @@ export const api = {
     show_opp_cost?: boolean
     rush_hour?: boolean
     include_insurance?: boolean
+    include_parking_toll?: boolean
   }): Promise<TcoResponse> {
     const res = await safeFetch(`${API_BASE}/api/wizard/custom`, {
       method: 'POST',
@@ -386,10 +390,11 @@ export const api = {
     car?: CarInfo
     city: string
     km: number
-    years: number
-    city_ratio?: number
-    rush_hour?: boolean
-  }): Promise<YearlyBreakdownResponse> {
+     years: number
+     city_ratio?: number
+     rush_hour?: boolean
+     include_parking_toll?: boolean
+   }): Promise<YearlyBreakdownResponse> {
     const res = await safeFetch(`${API_BASE}/api/tco/yearly-breakdown`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

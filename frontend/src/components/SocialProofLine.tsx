@@ -74,7 +74,7 @@ export default function SocialProofLine({
     return () => clearInterval(id)
   }, [isLoading, skeleton, showSkeleton, prefersReduced])
 
-  if (isError) return null
+  if (isError) return <p className="text-sm text-[var(--text-muted)] mt-3">{t('common.socialProofFallback')}</p>
   if (!data) {
     if (isLoading && skeleton && showSkeleton) {
       const base = t('common.statsLoading').replace(/[。．\.…]+$/u, '')
@@ -84,7 +84,8 @@ export default function SocialProofLine({
     }
     return null
   }
-  if (data.insufficient || data.min_annual_cost_vnd == null) return null
+  if (data.insufficient || data.min_annual_cost_vnd == null)
+    return <p className="text-sm text-[var(--text-muted)] mt-3">{t('common.socialProofFallback')}</p>
 
   const fmt = (v: number) =>
     new Intl.NumberFormat('vi-VN', {
