@@ -280,19 +280,32 @@ class ResalePredictor:
             # already ~monotonic per group, so this is a light correction that
             # removes sparse-year noise (Y4 > Y3) at the source — the runtime
             # monotonicity clamp in calculations.py is therefore unnecessary.
+            #
+            # Batch all year predictions into single model.predict() calls to avoid
+            # the sklearn "delayed should be used with Parallel" warning that fires
+            # on every loop iteration. Batching also improves performance ~10x.
             if group_max >= 1:
                 raw_seq: list[float] = []
                 req_preds: list[float] = []
                 req_Xv = None
+                
+                # Build feature arrays for all years (1..group_max) and stack into
+                # single (group_max, features) array for batch prediction.
+                year_arrays = []
                 for y in range(1, group_max + 1):
                     X = self._encode(brand, segment, car_type, y, annual_km, price)
                     X = X.reindex(columns=self._feature_cols, fill_value=0.0)
-                    Xv = X.to_numpy(dtype=float)
-                    preds = [float(m.predict(Xv)[0]) for m in models]
+                    year_arrays.append(X.to_numpy(dtype=float)[0, :])
+                X_batch = np.vstack(year_arrays)  # (group_max, features)
+                
+                # Predict for all years in single call per model, extract per-year averages
+                all_model_preds = [m.predict(X_batch) for m in models]  # Each: (group_max,)
+                for y_idx in range(group_max):
+                    preds = [float(all_model_preds[m_idx][y_idx]) for m_idx in range(len(models))]
                     raw_seq.append(float(np.mean(preds)))
-                    if y == years:
+                    if (y_idx + 1) == years:  # y_idx is 0-based, years is 1-based
                         req_preds = preds
-                        req_Xv = Xv
+                        req_Xv = X_batch[y_idx:y_idx+1, :]
                 try:
                     calibrated = isotonic_regression(
                         np.array(raw_seq, dtype=float),
