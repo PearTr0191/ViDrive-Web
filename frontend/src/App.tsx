@@ -47,10 +47,39 @@ function OfflineBanner() {
   )
 }
 
+function BackendOutageBanner() {
+  const { t } = useI18n()
+  const [dismissed, setDismissed] = useState(() => {
+    if (typeof window === 'undefined') return false
+    return sessionStorage.getItem('backend-outage-dismissed') === 'true'
+  })
+
+  const handleDismiss = () => {
+    setDismissed(true)
+    sessionStorage.setItem('backend-outage-dismissed', 'true')
+  }
+
+  if (dismissed) return null
+
+  return (
+    <div className="w-full bg-[rgba(var(--color-warning-rgb),0.1)] border-b border-[rgba(var(--color-warning-rgb),0.3)] text-[var(--color-warning)] text-sm font-medium py-2 px-4 flex items-center justify-between">
+      <span className="flex-1 text-center">{t('common.backendOutage')}</span>
+      <button
+        onClick={handleDismiss}
+        className="ml-4 hover:opacity-70 transition-opacity"
+        aria-label={t('common.close')}
+      >
+        ×
+      </button>
+    </div>
+  )
+}
+
 function App() {
   return (
     <Layout>
       <OfflineBanner />
+      <BackendOutageBanner />
       <RouteErrorBoundary>
         <Outlet />
       </RouteErrorBoundary>

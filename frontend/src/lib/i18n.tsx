@@ -618,6 +618,7 @@ const translations: Record<Locale, Record<string, string>> = {
     'common.offlineBanner': 'You appear to be offline. Some features may be unavailable.',
     'common.offline': 'Offline',
     'common.offlineRetry': 'Retry',
+    'common.backendOutage': "The backend (server handling the calculations) is currently experiencing issues and may produce unrecoverable data errors. See details at status.render.com",
     'common.notFound': 'Page Not Found',
     'common.notFoundDesc': 'The page you are looking for does not exist or has been moved.',
     'common.all': 'All',
