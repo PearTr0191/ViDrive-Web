@@ -1483,6 +1483,7 @@ const translations: Record<Locale, Record<string, string>> = {
     'common.offlineBanner': 'Bạn dường như đang ngoại tuyến. Một số tính năng có thể không khả dụng.',
     'common.offline': 'Ngoại tuyến',
     'common.offlineRetry': 'Thử lại',
+    'common.backendOutage': "Backend (máy chủ xử lí các yêu cầu tính toán hiện đang gặp vấn đề và gây lỗi không truy hồi được dữ liệu, xem chi tiết tại status.render.com.",
     'common.notFound': 'Trang không tìm thấy',
     'common.notFoundDesc': 'Trang bạn đang tìm không tồn tại hoặc đã được di chuyển.',
     'common.all': 'Tất cả',
