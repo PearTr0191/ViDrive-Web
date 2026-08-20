@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom'
 import { motion, useReducedMotion } from 'framer-motion'
-import { useSeoMetaSafe, JsonLd } from '../lib/seo'
+import { useSeoMetaSafe, JsonLd, useLocalePath } from '../lib/seo'
 import { useI18n } from '../lib/i18n'
 import GlassCard from '../components/ui/GlassCard'
 import { GUIDES, guideI18nKey } from '../lib/guides'
@@ -45,7 +45,7 @@ export default function Guides() {
               transition={prefersReduced ? { duration: 0 } : { delay: idx * 0.04, ease: 'backOut' }}
             >
               <Link
-                to={`/guides/${g.slug}`}
+                to={useLocalePath(`/guides/${g.slug}`)}
                 className="block group h-full"
               >
                 <GlassCard className="p-5 h-full flex flex-col gap-3 hover:border-accent/40 transition-colors">

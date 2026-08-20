@@ -1,14 +1,16 @@
 import { useSeoMeta, useHead } from '@unhead/react'
 import { type ReactNode } from 'react'
-import { useLocation } from 'react-router-dom'
+import { useLocation, useParams } from 'react-router-dom'
 import { useI18n } from './i18n'
 
+export type Locale = 'en' | 'vi'
+
 const SITE_NAME = 'ViDrive'
-// Single source of truth for the canonical domain. Override at build time via
-// VITE_SITE_URL (e.g. production domain); defaults to the current deploy host.
+const LOCALES: Locale[] = ['en', 'vi']
+const DEFAULT_LOCALE: Locale = 'vi'
 const SITE_URL = (import.meta.env.VITE_SITE_URL as string | undefined)?.replace(/\/$/, '') ||
   'https://vidrive-web.pages.dev'
-const DEFAULT_OG_IMAGE = `${SITE_URL}/og-tco.png`
+const DEFAULT_OG_IMAGE = `${SITE_URL}/og-tco.webp`
 const DEFAULT_OG_IMAGE_ALT =
   'ViDrive — công cụ tính tổng chi phí sở hữu ô tô (TCO) minh bạch tại Việt Nam: so sánh xe điện, hybrid và xăng'
 const DEFAULT_DESCRIPTION =
@@ -27,25 +29,62 @@ export interface SeoMetaInput {
   [key: string]: unknown
 }
 
-/**
- * Hook to set per-route SEO meta tags. Call at the top level of any page component.
- *
- * Uses the i18n `t` function to resolve title/description from `page.*` keys,
- * falling back to sensible defaults. Also injects Open Graph, Twitter, canonical,
- * and hreflang (self-referential vi + x-default) tags.
- */
+export { SITE_URL, SITE_NAME, DEFAULT_DESCRIPTION, LOCALES, DEFAULT_LOCALE }
+
+export function useCurrentLocale(): Locale {
+  const { locale: paramLocale } = useParams() as { locale?: string }
+  return (paramLocale ?? DEFAULT_LOCALE) as Locale
+}
+
+export function stripLocale(path: string): string {
+  for (const loc of LOCALES) {
+    const prefix = `/${loc}/`
+    if (path === `/${loc}` || path.startsWith(prefix)) {
+      return path === `/${loc}` ? '/' : path.slice(prefix.length - 1)
+    }
+  }
+  return path
+}
+
+export function addLocale(locale: Locale, path: string): string {
+  if (!path || path === '/') return `/${locale}`
+  if (path.startsWith(`${SITE_URL}/`)) {
+    const relative = path.slice(SITE_URL.length)
+    return `/${locale}${relative}`
+  }
+  if (path.startsWith('/')) return `/${locale}${path}`
+  return `/${locale}/${path}`
+}
+
+export function localeAlternates(canonicalPath: string): { en: string; vi: string; xDefault: string } {
+  const stripped = stripLocale(canonicalPath)
+  return {
+    en: `${SITE_URL}${addLocale('en', stripped)}`,
+    vi: `${SITE_URL}${addLocale('vi', stripped)}`,
+    xDefault: `${SITE_URL}${stripped === '/' ? '/' : stripped}`,
+  }
+}
+
+export function useLocalePath(path: string): string {
+  const locale = useCurrentLocale()
+  return addLocale(locale, path)
+}
+
 export function useSeoMetaSafe(meta: SeoMetaInput): void {
-  const { t, locale } = useI18n()
+  const { t } = useI18n()
   const location = useLocation()
 
+  const currentLocale = useCurrentLocale()
   const resolvedTitle = t('page.title')
   const resolvedDesc = t('page.description')
   const title = meta.title ?? (resolvedTitle === 'page.title' ? SITE_NAME : resolvedTitle)
   const description =
     meta.description ?? (resolvedDesc === 'page.description' ? DEFAULT_DESCRIPTION : resolvedDesc)
-  const canonicalPath = meta.canonical ?? location.pathname
-  const canonicalUrl = `${SITE_URL}${canonicalPath}`
+  const canonicalPath = meta.canonical ?? stripLocale(location.pathname)
+  const canonicalUrl = `${SITE_URL}${canonicalPath === '/' ? '/' : canonicalPath}`
   const ogImage = meta.ogImage ?? DEFAULT_OG_IMAGE
+
+  const alternates = localeAlternates(canonicalPath)
 
   useSeoMeta({
     title: String(title),
@@ -57,7 +96,7 @@ export function useSeoMetaSafe(meta: SeoMetaInput): void {
     ogImage,
     ogImageAlt: meta.ogImageAlt ?? DEFAULT_OG_IMAGE_ALT,
     ogType: meta.ogType ?? 'website',
-    ogLocale: locale === 'vi' ? 'vi_VN' : 'en_US',
+    ogLocale: currentLocale === 'vi' ? 'vi_VN' : 'en_US',
     twitterCard: 'summary_large_image',
     twitterTitle: String(title),
     twitterDescription: String(description),
@@ -65,21 +104,18 @@ export function useSeoMetaSafe(meta: SeoMetaInput): void {
     ...(meta.noindex ? { robots: 'noindex,nofollow' } : {}),
   } as Record<string, unknown>)
 
-  // Canonical + self-referential hreflang (vi + x-default). True per-URL
-  // EN/VI hreflang alternates require URL-based locale routing (see audit C14).
+  // Canonical + true hreflang alternates. Each locale gets its own URL
+  // (/vi/path, /en/path) with x-default pointing to the locale-stripped canonical.
   useHead({
     link: [
       { rel: 'canonical', href: canonicalUrl },
-      { rel: 'alternate', hreflang: 'vi', href: canonicalUrl },
-      { rel: 'alternate', hreflang: 'x-default', href: canonicalUrl },
+      { rel: 'alternate', hreflang: 'en', href: alternates.en },
+      { rel: 'alternate', hreflang: 'vi', href: alternates.vi },
+      { rel: 'alternate', hreflang: 'x-default', href: alternates.xDefault },
     ],
   })
 }
 
-/**
- * Render a JSON-LD <script type="application/ld+json"> block via useHead.
- * Pass already-serialized JSON. Safe for CSR — unhead injects it into <head>.
- */
 export function JsonLd({ data }: { data: Record<string, unknown> }): ReactNode {
   useHead({
     script: [
@@ -92,23 +128,10 @@ export function JsonLd({ data }: { data: Record<string, unknown> }): ReactNode {
   return null
 }
 
-/**
- * Resolve a car name from a car object for use in meta tags / alt text.
- */
 export function carDisplayName(car: { brand?: string; model?: string; id?: string }): string {
   if (car.brand && car.model) return `${car.brand} ${car.model}`
   if (car.id) return car.id.replace(/_/g, ' ')
   return SITE_NAME
-}
-
-export { SITE_URL, SITE_NAME, DEFAULT_DESCRIPTION }
-
-/**
- * Build a schema.org BreadcrumbList object for use with <JsonLd>.
- */
-export interface BreadcrumbItem {
-  name: string
-  url: string
 }
 
 export function breadcrumbLd(items: BreadcrumbItem[]): Record<string, unknown> {
@@ -122,4 +145,9 @@ export function breadcrumbLd(items: BreadcrumbItem[]): Record<string, unknown> {
       item: it.url,
     })),
   }
+}
+
+export interface BreadcrumbItem {
+  name: string
+  url: string
 }

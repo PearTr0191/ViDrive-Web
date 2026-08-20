@@ -1043,6 +1043,7 @@ def get_config():
         "version": APP_VERSION,
         "max_comparison_cars": MAX_COMPARISON_CARS,
         "supported_cities": len(CITY_LIST),
+        "last_updated": LAST_UPDATED.isoformat(),
     }
 
 

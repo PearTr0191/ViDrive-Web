@@ -12,11 +12,11 @@ class OfflineError extends Error {
 async function safeFetch(input: RequestInfo, init?: RequestInit): Promise<Response> {
   try {
     return await fetch(input, init)
-  } catch (err: any) {
+  } catch (err: unknown) {
     if (typeof navigator !== 'undefined' && !navigator.onLine) {
       throw new OfflineError('You appear to be offline. Some features may be unavailable.')
     }
-    if (err && err.name === 'TypeError' && err.message === 'Failed to fetch') {
+    if (err instanceof Error && err.name === 'TypeError' && err.message === 'Failed to fetch') {
       throw new OfflineError('Unable to reach the backend server. Please check your connection.')
     }
     throw err
@@ -285,7 +285,7 @@ export const api = {
     return res.json()
   },
 
-  async getConfig(): Promise<any> {
+  async getConfig(): Promise<ConfigResponse> {
     const res = await safeFetch(`${API_BASE}/api/config`)
     return res.json()
   },
@@ -375,7 +375,7 @@ export const api = {
     years: number
     city_ratio: number
     rush_hour?: boolean
-  }): Promise<{ fuel: any; registration: any }> {
+  }): Promise<BreakdownResponse> {
     const res = await safeFetch(`${API_BASE}/api/tco/breakdown`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -486,6 +486,50 @@ export interface AssumptionsResponse {
   groups: AssumptionGroup[]
 }
 
+export interface ConfigResponse {
+  version: string
+  max_comparison_cars: number
+  supported_cities: number
+  last_updated: string
+}
+
+export interface FuelBreakdown {
+  consumption: number
+  adjusted_consumption: number
+  freeway_mult: number
+  city_mult: number
+  final_mult: number
+  price: number
+  price_label: string
+  car_type: string
+  annual_fuel: number
+  total_fuel: number
+  years: number
+  km: number
+  city_ratio: number
+}
+
+export interface RegistrationBreakdown {
+  price: number
+  car_type: string
+  seats: number
+  area: number
+  tax_rate: number
+  tax: number
+  tax_desc: string
+  plate: number
+  inspection: number
+  road_fee: number
+  insurance: number
+  total: number
+  on_road: number
+}
+
+export interface BreakdownResponse {
+  fuel: FuelBreakdown
+  registration: RegistrationBreakdown
+}
+
 export interface ConfigProposalChange {
   key: string
   value: number
@@ -498,7 +542,7 @@ export interface ConfigProposalIn {
   author?: string | null
   locale: 'en' | 'vi'
   changes: ConfigProposalChange[]
-  metadata?: Record<string, any> | null
+  metadata?: Record<string, unknown> | null
 }
 
 export interface ProposalSubmitResult {

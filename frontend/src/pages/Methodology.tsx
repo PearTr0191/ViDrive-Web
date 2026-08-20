@@ -456,6 +456,10 @@ export default function Methodology() {
         author: { '@type': 'Organization', name: 'ViDrive' },
         publisher: { '@type': 'Organization', name: 'ViDrive', url: SITE_URL },
         dateModified: assumptionsMeta?.metadata?.last_updated ?? new Date().toISOString().split('T')[0],
+        speakable: {
+          '@type': 'SpeakableSpecification',
+          cssSelector: ['h1', '.prose', 'section'],
+        },
         mainEntityOfPage: { '@type': 'WebPage', '@id': `${SITE_URL}/methodology` },
         isBasedOn: [
           { '@type': 'WebSite', name: 'Petrolimex fuel prices', url: t('methodology.source.fuelPricing') },

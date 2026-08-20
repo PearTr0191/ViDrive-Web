@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion'
 import { Link } from 'react-router-dom'
 import { useI18n } from '../lib/i18n'
+import { useLocalePath } from '../lib/seo'
 
 /**
  * DeveloperMessage — overlay popup shown once on first visit.
@@ -185,7 +186,7 @@ export default function DeveloperMessage() {
                </p>
                 <p>
                   {t('devMsg.p2a')}
-                  <Link to="/methodology" onClick={closeModal} className="dev-msg-link">{t('devMsg.p2Link')}</Link>
+                  <Link to={useLocalePath('/methodology')} onClick={closeModal} className="dev-msg-link">{t('devMsg.p2Link')}</Link>
                   {t('devMsg.p2b')}
                 </p>
              </div>

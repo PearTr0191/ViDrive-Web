@@ -4,7 +4,7 @@ import { useKeyboardShortcut, isModShortcut } from '../hooks/useKeyboardShortcut
 import { registerShortcutHandlers, unregisterShortcutHandlers } from '../hooks/useGlobalShortcuts'
 import { api, formatVND, stripDiacritics, formatConsumption } from '../lib'
 import type { CarInfo } from '../lib'
-import { useSeoMetaSafe, JsonLd, breadcrumbLd, SITE_URL } from '../lib/seo'
+import { useSeoMetaSafe, JsonLd, breadcrumbLd, SITE_URL, useLocalePath } from '../lib/seo'
 import AccentButton from '../components/AccentButton'
 import GlassCard from '../components/ui/GlassCard'
 import CarMedia from '../components/CarMedia'
@@ -238,7 +238,7 @@ export default function BrowseCars() {
       ])} />
       <h1 className="text-3xl md:text-4xl font-heading font-bold text-[var(--text-primary)] mb-1">{t('browse.title')}</h1>
       {/* Custom car CTA — FIRST thing on the page for discoverability */}
-      <Link to="/wizard" className="block">
+      <Link to={useLocalePath('/wizard')} className="block">
         <GlassCard className="p-5 md:p-6 border-accent/40 bg-accent/5 hover:bg-accent/10 transition-colors cursor-pointer">
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-4">
@@ -368,12 +368,12 @@ export default function BrowseCars() {
 {paginatedCars.map((c: CarInfo, idx: number) => (
                 <tr key={c.id} className="border-b border-[var(--border-subtle)] last:border-0 hover:bg-[rgba(var(--bg-base-rgb),0.2)] transition-colors">
                   <td className="py-4 px-4 w-32">
-                    <Link to={`/car/${c.id}`} className="block">
+                    <Link to={useLocalePath(`/car/${c.id}`)} className="block">
                        <CarMedia carId={c.id} type={c.type} segment={c.segment} car={c} aspect="4 / 3" disableHover priority={idx === 0} className="!border-[var(--border-subtle)]" />
                       </Link>
                     </td>
                     <td className="py-4 px-4">
-                      <Link to={`/car/${c.id}`} className="block hover:text-accent-warm transition-colors">
+                      <Link to={useLocalePath(`/car/${c.id}`)} className="block hover:text-accent-warm transition-colors">
                         <div className="font-medium text-[var(--text-primary)]">{c.brand} {c.model}</div>
                         <div className="text-xs text-[var(--text-secondary)]">{c.id} • {c.segment}</div>
                       </Link>
@@ -403,12 +403,12 @@ export default function BrowseCars() {
                     </td>
                     <td className="text-right text-[var(--text-primary)] py-4 px-4">{c.seats}</td>
                     <td className="text-right py-4 px-4 whitespace-nowrap">
-                      <Link to={`/car/${c.id}`} className="inline-block mr-2">
+                      <Link to={useLocalePath(`/car/${c.id}`)} className="inline-block mr-2">
                         <AccentButton variant="outline" size="sm">
                           {t('browse.viewDetails')}
                         </AccentButton>
                       </Link>
-                      <Link to={`/tco?car=${c.id}`}>
+                      <Link to={`${useLocalePath(`/tco`)}?car=${c.id}`}>
                         <AccentButton size="sm">
                           {t('browse.calculate')}
                         </AccentButton>
@@ -457,7 +457,7 @@ export default function BrowseCars() {
                   </div>
                 </Link>
                 <div className="flex gap-2">
-                  <Link to={`/car/${c.id}`} className="flex-1">
+                  <Link to={useLocalePath(`/car/${c.id}`)} className="flex-1">
                     <AccentButton variant="outline" size="sm" className="w-full">
                       {t('browse.viewDetails')}
                     </AccentButton>

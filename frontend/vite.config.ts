@@ -26,6 +26,19 @@ const STATIC_ROUTES = [
   '/guides',
 ]
 
+// Generate locale-prefixed variants of a base path: /vi/* and /en/*
+// The root '/' becomes ['/vi', '/en']
+function withLocales(path: string): string[] {
+  if (path === '/') return ['/vi', '/en']
+  return [`/vi${path}`, `/en${path}`]
+}
+
+const ssgDynamicRoutes = [
+  ...STATIC_ROUTES.flatMap(withLocales),
+  ...carIds.flatMap(id => withLocales(`/car/${id}`)),
+  ...GUIDE_SLUGS.flatMap(slug => withLocales(`/guides/${slug}`)),
+]
+
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [
@@ -33,19 +46,26 @@ export default defineConfig({
     sitemap({
       hostname: SITE_URL,
       generateRobotsTxt: false,
-      exclude: [
+       exclude: [
         '/google33bc7b02ae9f2fda',
         '/google33bc7b02ae9f2fda.html',
         '/history',
+        '/en/history',
+        '/vi/history',
         '/404',
+        '/en/404',
+        '/vi/404',
         '/wizard',
+        '/en/wizard',
+        '/vi/wizard',
+        '/guides',
+        '/en/guides',
+        '/vi/guides',
         '/guides/*',
+        '/en/guides/*',
+        '/vi/guides/*',
       ],
-      dynamicRoutes: [
-        ...STATIC_ROUTES,
-        ...carIds.map(id => `/car/${id}`),
-        ...GUIDE_SLUGS.map(slug => `/guides/${slug}`),
-      ],
+      dynamicRoutes: ssgDynamicRoutes,
     }),
     reactSsg(),
   ],

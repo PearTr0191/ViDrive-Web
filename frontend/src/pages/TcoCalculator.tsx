@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useSearchParams, Link } from 'react-router-dom'
 import { api, historyApi, formatVND, toTitleCase, configApi } from '../lib'
 import type { CarInfo, TcoResponse, YearlyBreakdownEntry } from '../lib'
-import { useSeoMetaSafe, JsonLd, breadcrumbLd, SITE_URL } from '../lib/seo'
+import { useSeoMetaSafe, JsonLd, breadcrumbLd, SITE_URL, useLocalePath } from '../lib/seo'
 import AccentButton from '../components/AccentButton'
 import GlassCard from '../components/ui/GlassCard'
 import CostBars from '../components/CostBars'
@@ -161,7 +161,7 @@ export default function TcoCalculator() {
 
   // Compute days since last update (API-provided or fallback from last_updated date)
   const daysSinceUpdate = useMemo(() => {
-    const meta = assumptionsMeta as Record<string, any> | null | undefined
+    const meta = assumptionsMeta
     if (!meta) return null
     if (typeof meta.days_since_update === 'number') return meta.days_since_update
     const lu = meta.last_updated
@@ -443,7 +443,7 @@ export default function TcoCalculator() {
     if (includeInsurance) params.set('ins', '1')
     if (!includeParkingToll) params.set('park', '0')
     if (variant) params.set('v', variant)
-    const url = `${window.location.origin}/tco?${params.toString()}`
+    const url = `${window.location.origin}${window.location.pathname}${params.toString() ? '?' + params.toString() : ''}`
     try {
       await navigator.clipboard.writeText(url)
       setLinkCopied(true)
@@ -677,6 +677,21 @@ export default function TcoCalculator() {
       ])} />
       {/* C7/E1 — visible keyword h1 at the top of the page content */}
       <h1 className="text-3xl md:text-4xl font-heading font-bold text-[var(--text-primary)] mb-1">{t('tco.title')}</h1>
+      {/* SoftwareApplication — identifies the TCO calculator as a web app for AEO */}
+      <JsonLd data={{
+        '@context': 'https://schema.org',
+        '@type': 'SoftwareApplication',
+        name: t('tco.title'),
+        url: `${SITE_URL}/tco`,
+        applicationCategory: 'AutomotiveApplication',
+        operatingSystem: 'Web browser',
+        offers: {
+          '@type': 'Offer',
+          price: '0',
+          priceCurrency: 'VND',
+        },
+        inLanguage: locale,
+      }} />
       {/* Floating warning notifications — surfaces when resale predictions
           fall back to parametric modeling (years beyond ML training range)
           for regular cars, or when a custom car is used (no ML data). */}
@@ -901,7 +916,7 @@ export default function TcoCalculator() {
             </button>
           )}
 
-          <Link to="/methodology" className="block w-full">
+          <Link to={useLocalePath('/methodology')} className="block w-full">
             <AccentButton variant="outline" className="w-full text-xs">
               <span className="flex items-center justify-center gap-1.5">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
@@ -936,7 +951,7 @@ export default function TcoCalculator() {
               >
                 {saved ? t('common.savedToHistory') : t('tco.saveToHistory')}
              </AccentButton>
-                <Link to={'/compare?car0=' + selectedCar + '&car1=fortuner_2026'}>
+                <Link to={useLocalePath('/compare') + '?car0=' + selectedCar + '&car1=fortuner_2026'}>
                 <AccentButton variant="outline">
                   {t('tco.compareWith')}
                 </AccentButton>
@@ -960,8 +975,8 @@ export default function TcoCalculator() {
             <GlassCard className="p-3 border-danger/20" >
               <p className="text-danger text-sm" role="alert">{t('common.error')}: {mutation.error?.message}</p>
               <div className="flex flex-wrap gap-3 mt-3">
-                <Link to="/" className="text-sm text-accent hover:underline focus:outline-none focus:ring-2 focus:ring-accent/40 rounded">{t('nav.home')}</Link>
-                <Link to="/car" className="text-sm text-accent hover:underline focus:outline-none focus:ring-2 focus:ring-accent/40 rounded">{t('nav.browse')}</Link>
+                <Link to={useLocalePath('/')} className="text-sm text-accent hover:underline focus:outline-none focus:ring-2 focus:ring-accent/40 rounded">{t('nav.home')}</Link>
+                <Link to={useLocalePath('/car')} className="text-sm text-accent hover:underline focus:outline-none focus:ring-2 focus:ring-accent/40 rounded">{t('nav.browse')}</Link>
               </div>
             </GlassCard>
           )}
@@ -1401,10 +1416,10 @@ export default function TcoCalculator() {
                 </div>
 
                 {/* Legal stamp — fee basis per Thông tư 155/2025 (plan §B) */}
-                {(assumptionsMeta as any)?.last_updated && (
+                {assumptionsMeta?.last_updated && (
                   <div className="mt-3 text-center noprint">
                     <span className="inline-block px-3 py-1 rounded-full text-xs font-medium border border-[var(--border-default)] text-[var(--text-muted)]">
-                      {t('tco.legalStamp').replace('{date}', new Date((assumptionsMeta as any).last_updated).toLocaleDateString())}
+                      {t('tco.legalStamp').replace('{date}', new Date(assumptionsMeta?.last_updated ?? '').toLocaleDateString())}
                     </span>
                   </div>
                 )}
@@ -1414,7 +1429,7 @@ export default function TcoCalculator() {
                   <div className="mt-4 text-center">
                     <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium border border-[var(--border-subtle)] text-[var(--text-secondary)]">
                       <span className="text-accent" aria-hidden="true">✓</span>
-                      {(assumptionsMeta as any)?.data_stale
+                      {assumptionsMeta?.data_stale
                         ? t('common.dataStale').replace('{days}', String(daysSinceUpdate))
                         : t('common.dataCurrent')}
                     </span>
@@ -1593,7 +1608,7 @@ export default function TcoCalculator() {
               <p className="text-[var(--text-muted)] text-sm">
                 {t('tco.carNotFoundTipPrefix')}{' '}
                 <Link
-                  to="/car"
+                  to={useLocalePath('/car')}
                   className="text-accent font-medium hover:underline focus:outline-none focus:ring-2 focus:ring-accent/40 rounded"
                 >
                   {t('tco.carNotFoundTipLink')}

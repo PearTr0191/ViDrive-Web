@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { type RouteObject, type LoaderFunctionArgs } from 'react-router-dom'
+import { type RouteObject, type LoaderFunctionArgs, redirect, useParams } from 'react-router-dom'
 import type { ReactNode } from 'react'
-import { I18nProvider } from './lib/i18n'
+import { I18nProvider, DEFAULT_LOCALE, type Locale } from './lib/i18n'
 import { ThemeProvider } from './lib/theme'
 import { api } from './lib/api'
 import type { CarInfo } from './lib/api'
@@ -23,9 +23,9 @@ import NotFound from './pages/NotFound'
 import carsDataRaw from '../../backend/data/cars.json'
 
 function carsFromData(): CarInfo[] {
-  return Object.entries(carsDataRaw as Record<string, any>).map(([id, car]) => ({
-    id,
+  return Object.entries(carsDataRaw as unknown as Record<string, Omit<CarInfo, 'id'>>).map(([id, car]) => ({
     ...car,
+    id,
   })) as CarInfo[]
 }
 
@@ -49,23 +49,28 @@ export const ssgQueryClient = new QueryClient({
   },
 })
 
-export function RootProviders({ children }: { children: ReactNode }) {
+function LocaleRootProviders({ children }: { children: ReactNode }) {
+  const { locale } = useParams<{ locale: string }>()
+  const initialLocale = locale === 'en' || locale === 'vi' ? (locale as Locale) : DEFAULT_LOCALE
+  return (
+    <RootProviders initialLocale={initialLocale}>
+      {children}
+    </RootProviders>
+  )
+}
+
+export function RootProviders({ children, initialLocale }: { children: ReactNode; initialLocale?: Locale }) {
   return (
     <QueryClientProvider client={ssgQueryClient}>
-        <I18nProvider>
-          <ThemeProvider>
-            {children}
-          </ThemeProvider>
-        </I18nProvider>
+      <I18nProvider initialLocale={initialLocale}>
+        <ThemeProvider>
+          {children}
+        </ThemeProvider>
+      </I18nProvider>
     </QueryClientProvider>
   )
 }
 
-// Cache-aware loaders: on client-side navigation the SSG-baked data (and the
-// react-query cache populated on first mount) is already present, so we must
-// NOT re-run the network fetch — react-router blocks painting the destination
-// route until the loader resolves, which made landing/browse feel slow vs
-// loader-less routes. We only fetch when the cache is empty.
 async function landingLoader() {
   let cars = ssgQueryClient.getQueryData<CarInfo[]>(['cars'])
   let config = ssgQueryClient.getQueryData(['config'])
@@ -114,7 +119,7 @@ async function carLoader({ params }: LoaderFunctionArgs) {
     throw new Response('Custom car not found', { status: 404 })
   }
 
-  let car: CarInfo | null = null
+  let car: CarInfo | null
 
   try {
     car = await api.getCar(id)
@@ -129,6 +134,40 @@ async function carLoader({ params }: LoaderFunctionArgs) {
   return { car }
 }
 
+function localeRedirectLoader({ request }: LoaderFunctionArgs) {
+  const url = new URL(request.url)
+  const acceptLang = request.headers.get('accept-language') || ''
+  const detected: Locale = acceptLang.startsWith('en') ? 'en'
+    : acceptLang.startsWith('vi') ? 'vi'
+    : DEFAULT_LOCALE
+  const target = url.search ? `/${detected}${url.search}` : `/${detected}`
+  return redirect(target)
+}
+
+function localeLayoutLoader({ params }: LoaderFunctionArgs) {
+  const { locale } = params
+  if (locale !== 'en' && locale !== 'vi') {
+    return redirect(`/${DEFAULT_LOCALE}`)
+  }
+  return landingLoader()
+}
+
+const localeChildren: RouteObject[] = [
+  { index: true, element: <Landing />, loader: landingLoader },
+  { path: 'tco', element: <TcoCalculator /> },
+  { path: 'compare', element: <Compare /> },
+  { path: 'wizard', element: <Wizard /> },
+  { path: 'car', element: <BrowseCars />, loader: browseLoader },
+  { path: 'car/:id', element: <CarDetail />, loader: carLoader },
+  { path: 'history', element: <History /> },
+  { path: 'methodology', element: <Methodology /> },
+  { path: 'terms', element: <Terms /> },
+  { path: 'privacy', element: <Privacy /> },
+  { path: 'guides', element: <Guides /> },
+  { path: 'guides/:slug', element: <GuidePage /> },
+  { path: '*', element: <NotFound /> },
+]
+
 export const routes: RouteObject[] = [
   {
     path: '/',
@@ -137,20 +176,17 @@ export const routes: RouteObject[] = [
         <RootApp />
       </RootProviders>
     ),
-    children: [
-      { index: true, element: <Landing />, loader: landingLoader },
-      { path: 'tco', element: <TcoCalculator /> },
-      { path: 'compare', element: <Compare /> },
-      { path: 'wizard', element: <Wizard /> },
-      { path: 'car', element: <BrowseCars />, loader: browseLoader },
-      { path: 'car/:id', element: <CarDetail />, loader: carLoader },
-      { path: 'history', element: <History /> },
-      { path: 'methodology', element: <Methodology /> },
-      { path: 'terms', element: <Terms /> },
-      { path: 'privacy', element: <Privacy /> },
-      { path: 'guides', element: <Guides /> },
-      { path: 'guides/:slug', element: <GuidePage /> },
-      { path: '*', element: <NotFound /> },
-    ],
+    loader: localeRedirectLoader,
+    children: [],
+  },
+  {
+    path: '/:locale',
+    element: (
+      <LocaleRootProviders>
+        <RootApp />
+      </LocaleRootProviders>
+    ),
+    loader: localeLayoutLoader,
+    children: localeChildren,
   },
 ]

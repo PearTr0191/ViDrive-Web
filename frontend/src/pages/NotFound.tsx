@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { useI18n } from '../lib/i18n'
-import { useSeoMetaSafe } from '../lib/seo'
+import { useSeoMetaSafe, useLocalePath } from '../lib/seo'
 import { CheckeredFlag } from '../components/AutomotivePatterns'
 
 export default function NotFound() {
@@ -35,7 +35,7 @@ export default function NotFound() {
           {t('common.notFoundDesc')}
         </p>
         <Link
-          to="/"
+          to={useLocalePath('/')}
           className="inline-flex items-center gap-2 px-6 py-3 rounded-xl font-heading font-semibold accent-gradient text-[var(--bg-base)] hover:shadow-lg hover:shadow-accent/30 transition-all"
         >
           <CheckeredFlag size={18} />

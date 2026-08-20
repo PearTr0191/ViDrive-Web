@@ -3,7 +3,7 @@ import { motion } from 'framer-motion'
 import { useNavigate } from 'react-router-dom'
 import type { CarInfo } from '../lib'
 import { useI18n } from '../lib/i18n'
-import { useSeoMetaSafe } from '../lib/seo'
+import { useSeoMetaSafe, useLocalePath } from '../lib/seo'
 import AccentButton from '../components/AccentButton'
 import GlassCard from '../components/ui/GlassCard'
 import { useKeyboardShortcut } from '../hooks/useKeyboardShortcut'
@@ -15,6 +15,7 @@ const SEGMENTS = [
 
 export default function Wizard() {
   const { t, locale } = useI18n()
+  const localePath = useLocalePath('/car')
   useSeoMetaSafe({ title: `ViDrive - ${t('nav.wizard')}`, description: t('page.wizardDescription'), noindex: true })
   const navigate = useNavigate()
   const [step, setStep] = useState(0)
@@ -105,7 +106,7 @@ export default function Wizard() {
     // Auto-dismiss notification then navigate back to car listing
     setTimeout(() => {
       setShowNotification(false)
-      navigate('/car')
+      navigate(localePath)
     }, 1200)
   }
 

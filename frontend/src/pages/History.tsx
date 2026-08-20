@@ -5,7 +5,7 @@ import { motion, AnimatePresence, useReducedMotion } from 'framer-motion'
 import { api, historyApi, formatVND, stripDiacritics, toTitleCase } from '../lib'
 import type { CarInfo } from '../lib'
 import { registerShortcutHandlers, unregisterShortcutHandlers } from '../hooks/useGlobalShortcuts'
-import { useSeoMetaSafe } from '../lib/seo'
+import { useSeoMetaSafe, useLocalePath } from '../lib/seo'
 import AccentButton from '../components/AccentButton'
 import GlassCard from '../components/ui/GlassCard'
 import Skeleton from '../components/ui/Skeleton'
@@ -197,7 +197,7 @@ export default function History() {
       <div className="space-y-8">
         <GlassCard className="p-16 text-center">
           <div className="text-[var(--text-secondary)] text-lg mb-6">{t('history.empty')}</div>
-          <AccentButton onClick={() => navigate('/tco')}>{t('history.calculateNew')}</AccentButton>
+           <AccentButton onClick={() => navigate(useLocalePath('/tco'))}>{t('history.calculateNew')}</AccentButton>
         </GlassCard>
       </div>
     )

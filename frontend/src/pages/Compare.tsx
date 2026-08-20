@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useSearchParams, Link } from 'react-router-dom'
 import { api, historyApi, configApi, formatVND, toTitleCase } from '../lib'
 import type { TcoResult, CarInfo, YearlyBreakdownEntry } from '../lib'
-import { useSeoMetaSafe, JsonLd, breadcrumbLd, SITE_URL } from '../lib/seo'
+import { useSeoMetaSafe, JsonLd, breadcrumbLd, SITE_URL, useLocalePath } from '../lib/seo'
 import AccentButton from '../components/AccentButton'
 import GlassCard from '../components/ui/GlassCard'
 import CarMedia from '../components/CarMedia'
@@ -361,7 +361,7 @@ export default function Compare() {
   const depreciationNet = (r: TcoResult) => -r.depreciation
 
   const handleCopyLink = async () => {
-    const base = window.location.origin + '/compare?'
+    const base = `${window.location.origin}${window.location.pathname}?`
     const params = new URLSearchParams()
     validIds.forEach((id, i) => params.set(`car${i}`, id))
     params.set('city', city)
@@ -626,7 +626,7 @@ export default function Compare() {
               {comparePrimaryLabel}
             </AccentButton>
 
-            <Link to="/methodology" className="block w-full">
+            <Link to={useLocalePath('/methodology')} className="block w-full">
               <AccentButton variant="outline" className="w-full text-xs">
                 <span className="flex items-center justify-center gap-1.5">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
@@ -647,8 +647,8 @@ export default function Compare() {
             <GlassCard className="p-4 border-danger/20">
               <p className="text-danger text-sm" role="alert">{t('common.error')}: {mutation.error?.message}</p>
               <div className="flex flex-wrap gap-3 mt-3">
-                <Link to="/" className="text-sm text-accent hover:underline focus:outline-none focus:ring-2 focus:ring-accent/40 rounded">{t('nav.home')}</Link>
-                <Link to="/car" className="text-sm text-accent hover:underline focus:outline-none focus:ring-2 focus:ring-accent/40 rounded">{t('nav.browse')}</Link>
+                <Link to={useLocalePath('/')} className="text-sm text-accent hover:underline focus:outline-none focus:ring-2 focus:ring-accent/40 rounded">{t('nav.home')}</Link>
+                <Link to={useLocalePath('/car')} className="text-sm text-accent hover:underline focus:outline-none focus:ring-2 focus:ring-accent/40 rounded">{t('nav.browse')}</Link>
               </div>
             </GlassCard>
           )}
@@ -1007,10 +1007,10 @@ export default function Compare() {
                )}
 
                {/* Legal stamp — fee basis per Thông tư 155/2025 (plan §B) */}
-              {(assumptionsMeta as any)?.last_updated && (
+              {assumptionsMeta?.last_updated && (
                 <div className="text-center noprint">
                   <span className="inline-block px-3 py-1 rounded-full text-xs font-medium border border-[var(--border-default)] text-[var(--text-muted)]">
-                    {t('compare.legalStamp').replace('{date}', new Date((assumptionsMeta as any).last_updated).toLocaleDateString())}
+                    {t('compare.legalStamp').replace('{date}', new Date(assumptionsMeta?.last_updated ?? '').toLocaleDateString())}
                   </span>
                 </div>
               )}
@@ -1027,7 +1027,7 @@ export default function Compare() {
          {!results && !mutation.isError && !mutation.isPending && (
              <GlassCard className="p-16 text-center">
                <div className="text-[var(--text-secondary)] text-lg mb-4">{t('compare.emptyState')}</div>
-               <Link to="/car" className="inline-block text-sm font-medium text-accent hover:underline focus:outline-none focus:ring-2 focus:ring-accent/40 rounded">{t('nav.browse')} →</Link>
+               <Link to={useLocalePath('/car')} className="inline-block text-sm font-medium text-accent hover:underline focus:outline-none focus:ring-2 focus:ring-accent/40 rounded">{t('nav.browse')} →</Link>
             </GlassCard>
            )}
          </div>

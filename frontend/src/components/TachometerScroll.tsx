@@ -119,7 +119,7 @@ export default function TachometerScroll({ className = '', radius = 16.1 }: Tach
     if (scrollHeight <= 0) return
     const scrollStep = window.innerHeight / 4 // scroll by quarter screen
     const currentTop = window.scrollY
-    let targetTop = currentTop
+    let targetTop: number
 
     switch (e.key) {
       case 'ArrowDown':

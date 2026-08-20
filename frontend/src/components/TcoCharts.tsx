@@ -48,7 +48,7 @@ function TcoCharts({
                   ))}
                 </Pie>
                 <Tooltip
-                  formatter={(value: any) => formatVND(value)}
+                  formatter={(value) => formatVND(Number(value))}
                   contentStyle={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid rgba(var(--accent-rgb), 0.2)', borderRadius: '8px', color: 'var(--text-primary)' }}
                 />
               </PieChart>

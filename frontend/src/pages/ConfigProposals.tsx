@@ -39,8 +39,8 @@ export default function ConfigProposals({ hideBreadcrumbs = false }: { hideBread
         initialOpen[g.key] = g.items.some((i: AssumptionItem) => i.editable)
       })
       setOpenGroups(initialOpen)
-    } catch (err: any) {
-      setError(err.message || t('config.error'))
+    } catch (err: unknown) {
+      setError((err instanceof Error ? err.message : String(err)) || t('config.error'))
     } finally {
       setLoading(false)
     }

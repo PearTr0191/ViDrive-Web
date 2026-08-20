@@ -41,6 +41,13 @@
 - **Vite CLI**: `node node_modules/vite/bin/vite.js` (NOT `npx tsc`, NOT `node_modules/vite/dist/node/cli.js`). Must run from `frontend/` (no vite binary at repo root).
 - The `[plugin builtin:vite-reporter] (?!) Some chunks larger than 500 kB` is a **pseudo-error** (bundle-size warning); the real success line is `✓ built in Ns`. Don't treat the stderr warning as a failure.
 
+## Frontend: SSG Build Pipeline (build-ssg.mjs)
+
+- **Root-kill bug (fixed)**: `build-ssg.mjs` MUST NOT terminate vite on a transient artifact-count plateau. During `rendering chunks`, vite writes a shell `index.html` + the `vite-plugin-sitemap` `sitemap.xml`; `waitForBuildArtifacts` (the OLD, now-deleted function that keyed on `existsSync(index.html) && existsSync(sitemap.xml)` + a 1-iteration count plateau) saw that shell as "stable" and `SIGTERM`'d vite **before** `▲ React SSG` ran — producing a `dist/` with 0 prerendered route HTMLs (the "missing sitemap/1 HTML" symptom). That function is **removed** (dead code after the stdout-marker rewrite) and must NOT be re-added.
+- **Reliable completion signal**: vite-plugin-react-ssg never exits on its own (open handles). The ONLY reliable signal that all routes are flushed to disk is vite's stdout marker **`Static HTML generation completed: N total, N prerendered, 0 skipped`**. Resolve the build promise on that marker and `SIGTERM` only after it (with a 240s safety net). Do not re-add a plateau-based kill.
+- **Post-processing gate (deploy-safety hardened)**: only run `rewriteHtmlLang`/`writeRobots`/`postProcessSitemap`/`writeHeaders` if `dist/index.html` exists (guards a partial dist). `postProcessSitemap` is gated behind `ssgComplete` (the stdout marker must have fired) AND `routeHtmlCount >= MIN_ROUTES (50)` — a safety-net-fired build that flushed only the shell `index.html` + a stale/partial `sitemap.xml` cannot publish a broken sitemap. `postProcessSitemap` reads `vite-plugin-sitemap`'s raw sitemap (which emits every `<url>` at `priority=1.0` + a duplicate `/`) and rewrites it: dedup the `/` + assign hierarchy (`/ 1.0 daily; /tco,/compare 0.9 daily; /car/* 0.8 weekly; /guides,/car,/browse 0.7 weekly; /methodology 0.6 monthly; terms/privacy/guide-slugs 0.5 monthly`). The sitemap is emitted as one long line (no newlines) — count `<loc>` matches, not lines.
+- **Build command**: always `node scripts/build-ssg.mjs` (NOT raw `vite build`, which hangs on open handles and skips the sitemap/robots/headers hardening). Vite is invoked as `node node_modules/vite/bin/vite.js build` from `frontend/`. stdout is piped (`['ignore','pipe','inherit']`) so the completion marker is detectable AND progress is re-emitted via `process.stdout.write`; stderr stays inherited for live errors.
+
 ## Frontend: framer-motion / React 19
 
 - Use `HTMLMotionProps<'element'>`, not `React.HTMLAttributes`, for motion component props.
@@ -85,6 +92,14 @@
 - Frontend dev proxies `/api/*` to `http://localhost:8000` via `VITE_API_URL` (frontend `.env`). Backend: `python server.py` (imports `src.api:app`) from `backend/`, port 8000.
 - Always restart dev servers after backend edits — a stale server returns 404 on new endpoints. Check process age via `Get-WmiObject Win32Process`.
 - When source/review docs are deleted, re-derive review from **live verification** (build + a11y sweep + calculation spot-checks), not stale references.
+
+## SEO/AEO Recovery (2026-08-20 audit)
+
+- **Build script (`build-ssg.mjs`)**: root-cause was `waitForBuildArtifacts` (deleted) killing vite on a transient artifact-count plateau during `rendering chunks`; fix = resolve on stdout marker `Static HTML generation completed: N total`, SIGTERM only after marker (240s safety net). Run from `frontend/` dir — `process.cwd()` + `__dirname` resolve against `frontend/`, not repo root.
+- **Organization + WebSite + SearchAction**: single global `JsonLd` in `App.tsx:84-112` (not per-page) — applies to all pages including the shell.
+- **CarDetail schema**: uses `Car` (not `Product`) with `offers.priceSpecification` (`price`, `priceCurrency: VND`, `validFrom` = current date) — verified in built output.
+- **SoftwareApplication**: added to `TcoCalculator.tsx` (`AutomotiveApplication` category, free Offer VND, `inLanguage`).
+- **Build-verify checklist**: run BOTH `node node_modules/typescript/bin/tsc --noEmit` AND `node scripts/build-ssg.mjs` (from `frontend/`); grep built `dist/*.html` for `@type` to confirm JSON-LD survived SSG.
 
 ---
 

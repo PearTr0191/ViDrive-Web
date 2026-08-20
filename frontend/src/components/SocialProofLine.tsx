@@ -77,7 +77,7 @@ export default function SocialProofLine({
   if (isError) return <p className="text-sm text-[var(--text-muted)] mt-3">{t('common.socialProofFallback')}</p>
   if (!data) {
     if (isLoading && skeleton && showSkeleton) {
-      const base = t('common.statsLoading').replace(/[。．\.…]+$/u, '')
+      const base = t('common.statsLoading').replace(/[。．…]+$/u, '')
       return (
         <p className="text-xs text-[var(--text-muted)] italic">{base}{'.'.repeat(dotCount)}</p>
       ) as unknown as ReactNode

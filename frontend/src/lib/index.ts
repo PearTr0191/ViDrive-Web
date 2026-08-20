@@ -12,8 +12,8 @@ export function formatConsumption(car: { consumption: number; type: string }): s
 export { api, configApi, historyApi, formatVND, toTitleCase, calculateLoanLocal } from './api'
 export type {
   CarInfo, CityInfo, TcoResult, TcoResponse, LoanResult, YearlyBreakdownEntry,
-  AssumptionItem, AssumptionGroup, AssumptionsResponse, ConfigProposalIn, ProposalSubmitResult,
-  HistoryEntry,
+  AssumptionItem, AssumptionGroup, AssumptionsResponse, ConfigResponse, BreakdownResponse,
+  ConfigProposalIn, ProposalSubmitResult, HistoryEntry,
 } from './api'
 export { I18nProvider, useI18n } from './i18n'
 export type { Locale } from './i18n'

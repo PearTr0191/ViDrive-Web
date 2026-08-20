@@ -26,7 +26,14 @@ function rewriteHtmlLang() {
   if (!existsSync(distDir)) return
   for (const file of walk(distDir)) {
     const html = readFileSync(file, 'utf-8')
-    const fixed = html.replace(/<html([^>]*)lang="en"/, '<html$1lang="vi"')
+    const relPath = file.slice(distDir.length)
+    // Files under /en/ → lang="en"; root index.html (shell) and /vi/ → lang="vi"
+    const isEn = relPath.startsWith('/en/') || relPath === '/en/index.html'
+    const expectedLang = isEn ? 'en' : 'vi'
+    const fixed = html.replace(/<html([^>]*)lang="([^"]*)"/, (match, p1, lang) => {
+      if (lang === expectedLang) return match
+      return `<html${p1}lang="${expectedLang}"`
+    })
     if (fixed !== html) writeFileSync(file, fixed)
   }
 }
@@ -38,9 +45,16 @@ Allow: /
 
 # User-specific and duplicate/thin surfaces — keep parameterized and private
 # routes out of the index. \`/*\` is a wildcard, \`?\` is a literal so we use \`*?*\`.
+# Patterns cover both locale prefixes (/vi, /en) and the root.
+Disallow: /vi/history
+Disallow: /en/history
 Disallow: /history
+Disallow: /vi/wizard
+Disallow: /en/wizard
 Disallow: /wizard
 Disallow: /*?*
+Disallow: /vi/*?*
+Disallow: /en/*?*
 
 Sitemap: ${SITE_URL}/sitemap.xml
 `
@@ -60,14 +74,16 @@ function postProcessSitemap() {
       const loc = locMatch ? locMatch[1] : ''
       if (seen.has(loc)) return null
       seen.add(loc)
+      const fullPath = loc.replace(SITE_URL, '') || '/'
+      // Strip locale prefix for matching, but keep the original for output
+      const strippedPath = fullPath.replace(/^\/(en|vi)(\/|$)/, '/')
       let priority = '0.5'
       let changefreq = 'weekly'
-      const path = loc.replace(SITE_URL, '') || '/'
-      if (path === '/' ) { priority = '1.0'; changefreq = 'daily' }
-      else if (path === '/tco' || path === '/compare') { priority = '0.9'; changefreq = 'daily' }
-      else if (path.startsWith('/car/')) { priority = '0.8'; changefreq = 'weekly' }
-      else if (path === '/car' || path === '/browse' || path === '/guides') { priority = '0.7'; changefreq = 'weekly' }
-      else if (path === '/methodology') { priority = '0.6'; changefreq = 'monthly' }
+      if (strippedPath === '/') { priority = '1.0'; changefreq = 'daily' }
+      else if (strippedPath === '/tco' || strippedPath === '/compare') { priority = '0.9'; changefreq = 'daily' }
+      else if (strippedPath.startsWith('/car/')) { priority = '0.8'; changefreq = 'weekly' }
+      else if (strippedPath === '/car' || strippedPath === '/browse' || strippedPath === '/guides') { priority = '0.7'; changefreq = 'weekly' }
+      else if (strippedPath === '/methodology') { priority = '0.6'; changefreq = 'monthly' }
       else { priority = '0.5'; changefreq = 'monthly' }
       return `  <url>\n    <loc>${loc}</loc>\n    <lastmod>${new Date().toISOString().split('.')[0]}Z</lastmod>\n    <changefreq>${changefreq}</changefreq>\n    <priority>${priority}</priority>\n  </url>`
     })
@@ -75,29 +91,6 @@ function postProcessSitemap() {
     .join('\n')
   const header = '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:news="http://www.google.com/schemas/sitemap-news/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml" xmlns:image="http://www.google.com/schemas/sitemap-image/1.1" xmlns:video="http://www.google.com/schemas/sitemap-video/1.1">'
   writeFileSync(sitemapPath, `${header}\n${rebuilt}\n</urlset>\n`)
-}
-
-// Detect build completion via artifacts: vite-plugin-react-ssg can leave open
-// handles (preview server/watcher) that stop the `close` event from firing, so
-// we watch for index.html + sitemap.xml plus a stable prerendered-HTML count,
-// then consider the build flushed.
-async function waitForBuildArtifacts(maxWait = 30000) {
-  const start = Date.now()
-  let prev = -1
-  while (Date.now() - start < maxWait) {
-    const hasIndex = existsSync(resolve(distDir, 'index.html'))
-    const hasSitemap = existsSync(resolve(distDir, 'sitemap.xml'))
-    if (hasIndex && hasSitemap) {
-      const n = walk(distDir).length
-      if (n > 0 && n === prev) {
-        await new Promise(r => setTimeout(r, 800))
-        return true
-      }
-      prev = n
-    }
-    await new Promise(r => setTimeout(r, 600))
-  }
-  return false
 }
 
 // E6 / plan Phase 6: long-cache immutable hashed assets; no-cache HTML; HSTS.
@@ -202,55 +195,94 @@ async function main() {
     console.warn('[build-ssg] Backend not available:', e.message)
   }
 
+  // vite-plugin-react-ssg leaves open handles after SSG completes, so vite
+  // never exits on its own — we detect completion via vite's own stdout marker
+  // ("Static HTML generation completed: N total") and terminate the process.
+  // stdout is piped (and re-emitted) so we see vite's progress AND catch the
+  // marker; stderr stays inherited for live error visibility.
+  //
+  // DO NOT use a transient artifact-count plateau as a kill trigger: during
+  // "rendering chunks" vite writes a shell index.html + the vite-plugin-sitemap
+  // sitemap.xml, which falsely looks "stable" and kills the build mid-SSG
+  // (leaving dist/ with zero prerendered route HTML). The marker is the only
+  // reliable signal that every route's HTML has been flushed to disk.
   const vite = spawn('node', ['node_modules/vite/bin/vite.js', 'build'], {
     cwd: process.cwd(),
-    stdio: 'inherit',
+    stdio: ['ignore', 'pipe', 'inherit'],
   })
 
+  let ssgComplete = false
   const exitCode = await new Promise((resolve) => {
     let resolved = false
     const finish = (code) => {
       if (!resolved) { resolved = true; resolve(code || 0) }
     }
+
     vite.on('close', finish)
     vite.on('error', (err) => {
       console.error('[build-ssg] Vite process error:', err.message)
       finish(1)
     })
-    // vite-plugin-react-ssg can leave open handles (preview server/watcher)
-    // that prevent the `close` event from firing, so detect completion from
-    // the artifacts instead of a fixed dead wait: once index.html and
-    // sitemap.xml exist and the prerendered-HTML count is stable, the SSG
-    // flush is done and we can terminate the lingering process and proceed.
-    ;(async () => {
-      const ok = await waitForBuildArtifacts()
-      if (ok && !resolved) {
-        console.log('[build-ssg] build artifacts stable — terminating vite and proceeding')
-        vite.kill('SIGTERM')
-        finish(0)
+
+    // Primary completion signal: vite-plugin-react-ssg prints this ONLY after
+    // every route's HTML has been written to disk.
+    vite.stdout.on('data', (data) => {
+      const text = data.toString()
+      process.stdout.write(text)
+      if (!ssgComplete && /Static HTML generation completed/.test(text)) {
+        ssgComplete = true
+        console.log('[build-ssg] SSG flush complete — terminating vite and proceeding')
+        setImmediate(() => { vite.kill('SIGTERM'); finish(0) })
       }
-    })()
-    // Ultimate safety net: never block forever.
+    })
+
+    // Safety net: a 101-route SSG + client bundle finishes well under 240s.
     setTimeout(() => {
       if (!resolved) {
-        console.warn('[build-ssg] Vite did not exit within 30s; proceeding with post-build steps')
-        vite.kill('SIGTERM')
+        console.warn('[build-ssg] Vite did not report SSG completion within 240s; proceeding (dist may be incomplete)')
         finish(0)
       }
-    }, 30000)
+    }, 240000)
   })
 
   if (backend) {
     backend.kill()
   }
 
-  // Post-build SEO/CWV hardening (only if the build produced a dist/).
-  if (existsSync(distDir)) {
+  // Post-build SEO/CWV hardening. Gating rules:
+  //   - hasShell is required (the shell index.html proves vite emitted *something*).
+  //   - ssgComplete is required before touching the sitemap: the safety net (240s)
+  //     can fire mid-SSG, after the shell index.html + a *stale/partial* sitemap.xml
+  //     exist but before any route HTML is flushed. Post-processing that partial
+  //     sitemap would publish a broken sitemap listing fewer than the real routes.
+  //   - A minimum route count is a belt-and-suspenders check for the same hazard.
+  const routeHtmlCount = walk(distDir).length
+  const hasShell = existsSync(resolve(distDir, 'index.html'))
+  const hasSitemap = existsSync(resolve(distDir, 'sitemap.xml'))
+  const MIN_ROUTES = 100
+  if (!hasShell) {
+    console.error(`[build-ssg] FATAL: dist/index.html missing — SSG did not complete (found ${routeHtmlCount} HTML files). Skipping SEO hardening.`)
+  } else if (!ssgComplete) {
+    console.error(`[build-ssg] WARNING: SSG completion marker not seen (safety net may have fired) — dist may be incomplete (${routeHtmlCount} HTML files). Skipping sitemap post-processing to avoid publishing a broken sitemap.`)
+    rewriteHtmlLang()
+    writeRobots()
+    writeHeaders()
+  } else if (routeHtmlCount < MIN_ROUTES) {
+    console.error(`[build-ssg] WARNING: only ${routeHtmlCount} HTML files found (expected >= ${MIN_ROUTES}); possible incomplete prerender. Skipping sitemap post-processing.`)
+    rewriteHtmlLang()
+    writeRobots()
+    writeHeaders()
+  } else if (hasSitemap) {
     rewriteHtmlLang()
     writeRobots()
     postProcessSitemap()
     writeHeaders()
-    console.log('[build-ssg] post-build SEO hardening complete')
+    console.log(`[build-ssg] post-build SEO hardening complete (SSG dist OK: ${routeHtmlCount} HTML files)`)
+  } else {
+    console.error('[build-ssg] WARNING: sitemap.xml missing — running non-sitemap hardening only')
+    rewriteHtmlLang()
+    writeRobots()
+    writeHeaders()
   }
 
   process.exit(exitCode || 0)

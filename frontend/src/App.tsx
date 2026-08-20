@@ -6,6 +6,7 @@ import { useI18n } from './lib/i18n'
 import { JsonLd, SITE_URL } from './lib/seo'
 import { useHead } from '@unhead/react'
 import DeveloperMessage from './components/DeveloperMessage'
+import { useCurrentLocale } from './lib/seo'
 
 function RouteErrorBoundary({ children }: { children: React.ReactNode }) {
   const { t } = useI18n()
@@ -74,6 +75,7 @@ function GlobalOverlays() {
 
 export default function RootApp() {
   const { locale } = useI18n()
+  const currentLocale = useCurrentLocale()
   // Keep <html lang> in sync with the active (default: vi) locale so the
   // prerendered SSG HTML is correctly tagged for crawlers + assistive tech.
   useHead({ htmlAttrs: { lang: locale } })
@@ -103,10 +105,10 @@ export default function RootApp() {
         '@type': 'WebSite',
         name: 'ViDrive',
         url: SITE_URL,
-        inLanguage: 'vi',
+        inLanguage: currentLocale === 'vi' ? 'vi_VN' : 'en_US',
         potentialAction: {
           '@type': 'SearchAction',
-          target: `${SITE_URL}/car?q={search_term_string}`,
+          target: `${SITE_URL}/${currentLocale}/car?q={search_term_string}`,
           'query-input': 'required name=search_term_string',
         },
       }} />

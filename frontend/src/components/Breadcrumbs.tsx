@@ -2,6 +2,7 @@ import { Link, useLocation } from 'react-router-dom'
 import { useI18n } from '../lib/i18n'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '../lib'
+import { stripLocale, useLocalePath } from '../lib/seo'
 
 /** Maps URL path segments to breadcrumb translation keys. */
 const segmentMap: Record<string, string> = {
@@ -27,7 +28,8 @@ export default function Breadcrumbs({ items }: BreadcrumbsProps) {
   const { t } = useI18n()
   const location = useLocation()
 
-  const segments = location.pathname.split('/').filter(Boolean)
+  const stripped = stripLocale(location.pathname)
+  const segments = stripped.split('/').filter(Boolean)
   const carId = segments[0] === 'car' ? segments[1] : undefined
 
   // Reuses the same cache key as the car detail page, so no extra network call.
@@ -39,7 +41,7 @@ export default function Breadcrumbs({ items }: BreadcrumbsProps) {
   })
 
   const crumbs: { label: string; path: string }[] = [
-    { label: t('breadcrumb.home'), path: '/' },
+    { label: t('breadcrumb.home'), path: useLocalePath('/') },
   ]
 
   if (items && items.length > 0) {
@@ -59,7 +61,7 @@ export default function Breadcrumbs({ items }: BreadcrumbsProps) {
         key = segmentMap[seg]
       }
       if (key) {
-        crumbs.push({ label: t(key), path: accumulated })
+        crumbs.push({ label: t(key), path: useLocalePath(accumulated) })
       }
     }
 
@@ -80,7 +82,7 @@ export default function Breadcrumbs({ items }: BreadcrumbsProps) {
         {crumbs.map((crumb, idx) => {
           const isLast = idx === crumbs.length - 1
           return (
-            <li key={crumb.path} className="flex items-center gap-2">
+            <li key={crumb.path || idx} className="flex items-center gap-2">
               {idx > 0 && <span style={{ color: 'var(--text-muted)', opacity: 0.5 }}>/</span>}
               {isLast || !crumb.path ? (
                 <span className="font-medium" style={{ color: 'var(--accent)' }}>{crumb.label}</span>

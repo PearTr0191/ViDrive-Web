@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from 'react'
 
 export type Locale = 'en' | 'vi'
+export const DEFAULT_LOCALE: Locale = 'vi'
 
 // ─── Translation dictionary (ported from backend/src/i18n.py) ────────────────
 const translations: Record<Locale, Record<string, string>> = {
@@ -1824,15 +1825,16 @@ interface I18nContextType {
 
 const I18nContext = createContext<I18nContextType | null>(null)
 
-export function I18nProvider({ children }: { children: ReactNode }) {
+export function I18nProvider({ children, initialLocale }: { children: ReactNode; initialLocale?: Locale }) {
   const [locale, setLocaleState] = useState<Locale>(() => {
+    if (initialLocale) return initialLocale
     if (typeof localStorage !== 'undefined') {
       try {
         const saved = localStorage.getItem('vidrive-locale')
         if (saved === 'vi' || saved === 'en') return saved
       } catch { /* storage unavailable */ }
     }
-    return 'vi'
+    return DEFAULT_LOCALE
   })
 
   const setLocale = useCallback((next: Locale) => {

@@ -6,8 +6,9 @@ import GlassCard from '../components/ui/GlassCard'
 import AnimatedCounter from '../components/ui/AnimatedCounter'
 import Skeleton from '../components/ui/Skeleton'
 import { GridPattern } from '../components/AutomotivePatterns'
-import { api, formatVND, type CarInfo } from '../lib'
+import { api, formatVND, type CarInfo, type ConfigResponse } from '../lib'
 import { useI18n } from '../lib/i18n'
+import { useLocalePath } from '../lib/seo'
 import { useTheme } from '../lib/theme'
 import { useSeoMetaSafe, JsonLd, SITE_URL } from '../lib/seo'
 import { useQuery } from '@tanstack/react-query'
@@ -26,7 +27,7 @@ export default function Landing() {
   // (light theme "fades away"); `screen` stayed visible (dark was perfect). The container
   // is now a plain <div> (no opacity/will-change) so the blend reaches the real backdrop.
 
-  const loaderData = useLoaderData() as { cars?: CarInfo[]; config?: any }
+  const loaderData = useLoaderData() as { cars?: CarInfo[]; config?: ConfigResponse }
 
   const { data: config, isLoading: isConfigLoading } = useQuery({
     queryKey: ['config'],
@@ -224,10 +225,10 @@ export default function Landing() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.5, duration: 0.6 }}
           >
-            <Link to="/tco?car=vf8_2026">
+            <Link to={`${useLocalePath('/tco')}?car=vf8_2026`}>
               <AccentButton size="lg">{t('landing.ctaCalculate')}</AccentButton>
             </Link>
-            <Link to="/compare?car0=vf8_2026&car1=vios_2026">
+            <Link to={`${useLocalePath('/compare')}?car0=vf8_2026&car1=vios_2026`}>
               <AccentButton variant="outline" size="lg">{t('landing.ctaCompare')}</AccentButton>
             </Link>
           </motion.div>
@@ -300,7 +301,7 @@ export default function Landing() {
           <GlassCard className="p-6" initial={{ opacity: 0, y: 16 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}>
             <h3 className="text-lg font-heading font-semibold text-[var(--text-primary)] mb-1">{t('landing.sampleTitle')}</h3>
             <p className="text-sm text-[var(--text-secondary)] mb-4">{t('landing.sampleSub')}</p>
-            <Link to="/tco?car=vios_2026&city=hanoi&km=15000&years=5&ratio=60">
+            <Link to={`${useLocalePath('/tco')}?car=vios_2026&city=hanoi&km=15000&years=5&ratio=60`}>
               <AccentButton size="sm">{t('landing.ctaCalculate')}</AccentButton>
             </Link>
           </GlassCard>
@@ -311,7 +312,7 @@ export default function Landing() {
                 const car = cars?.find(c => c.id === id)
                 if (!car) return null
                 return (
-                  <Link key={id} to={`/tco?car=${id}&city=hanoi&km=15000&years=5&ratio=60`} className="block">
+                  <Link key={id} to={`${useLocalePath('/tco')}?car=${id}&city=hanoi&km=15000&years=5&ratio=60`} className="block">
                     <GlassCard className="p-3 group">
                       <div className="font-medium text-[var(--text-primary)]">{car.brand} {car.model}</div>
                       <div className="text-xs text-[var(--text-secondary)]">{car.segment} · {car.type}</div>
@@ -439,10 +440,10 @@ export default function Landing() {
             viewport={{ once: true }}
             transition={{ delay: 0.4 }}
           >
-              <Link to="/tco">
+              <Link to={useLocalePath('/tco')}>
                 <AccentButton size="lg">{t('landing.ctaCalculate')}</AccentButton>
               </Link>
-              <Link to="/car">
+              <Link to={useLocalePath('/car')}>
                 <AccentButton variant="outline" size="lg">{t('nav.browse')}</AccentButton>
               </Link>
           </motion.div>

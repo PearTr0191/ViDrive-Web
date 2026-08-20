@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { motion, useReducedMotion } from 'framer-motion'
 import { api, formatVND, formatConsumption } from '../lib'
 import type { CarInfo } from '../lib'
-import { useSeoMetaSafe, JsonLd, SITE_URL } from '../lib/seo'
+import { useSeoMetaSafe, JsonLd, SITE_URL, useLocalePath, useCurrentLocale } from '../lib/seo'
 import AccentButton from '../components/AccentButton'
 import GlassCard from '../components/ui/GlassCard'
 import CarMedia from '../components/CarMedia'
@@ -13,6 +13,8 @@ export default function CarDetail() {
   const { t } = useI18n()
    const { id } = useParams<{ id: string }>()
    const prefersReduced = useReducedMotion()
+   const currentLocale = useCurrentLocale()
+   const localePrefix = `/${currentLocale}`
    const loaderData = useLoaderData() as { car?: CarInfo }
 
    const { data: car, isLoading, isError } = useQuery({
@@ -44,15 +46,14 @@ export default function CarDetail() {
 
    // Dynamic SEO — must be called unconditionally (Rules of Hooks)
    const carName = car ? `${car.brand} ${car.model}` : ''
-   useSeoMetaSafe({
-     title: `ViDrive - ${carName || t('nav.browse')}`,
-     description: car
-       ? t('page.carDetailDescription', { brand: car.brand, model: car.model, segment: car.segment })
-       : t('page.browseDescription'),
-     canonical: car ? `/car/${car.id}` : undefined,
-      ogImage: car ? `${SITE_URL}/cars/${encodeURIComponent(car.id)}.webp` : undefined,
-      ogImageAlt: car ? `${car.brand} ${car.model} side profile` : undefined,
-      ogType: 'product',
+    useSeoMetaSafe({
+      title: `ViDrive - ${carName || t('nav.browse')}`,
+      description: car
+        ? t('page.carDetailDescription', { brand: car.brand, model: car.model, segment: car.segment })
+        : t('page.browseDescription'),
+       ogImage: car ? `${SITE_URL}/cars/${encodeURIComponent(car.id)}.webp` : undefined,
+       ogImageAlt: car ? `${car.brand} ${car.model} side profile` : undefined,
+       ogType: 'product',
     })
 
    if (isLoading) {
@@ -72,7 +73,7 @@ export default function CarDetail() {
       <div className="space-y-8">
         <GlassCard className="p-12 text-center">
           <div className="text-accent text-2xl font-bold mb-4">{t('carDetail.notFound')}</div>
-          <Link to="/car" className="inline-block">
+          <Link to={useLocalePath('/car')} className="inline-block">
             <AccentButton>{t('carDetail.backToBrowse')}</AccentButton>
           </Link>
         </GlassCard>
@@ -94,9 +95,9 @@ export default function CarDetail() {
           {
             '@type': 'BreadcrumbList',
             itemListElement: [
-              { '@type': 'ListItem', position: 1, name: t('nav.home'), item: SITE_URL },
-              { '@type': 'ListItem', position: 2, name: t('nav.browse'), item: `${SITE_URL}/car` },
-              { '@type': 'ListItem', position: 3, name: `${car.brand} ${car.model}`, item: `${SITE_URL}/car/${car.id}` },
+              { '@type': 'ListItem', position: 1, name: t('nav.home'), item: `${SITE_URL}${localePrefix}` },
+              { '@type': 'ListItem', position: 2, name: t('nav.browse'), item: `${SITE_URL}${localePrefix}/car` },
+              { '@type': 'ListItem', position: 3, name: `${car.brand} ${car.model}`, item: `${SITE_URL}${localePrefix}/car/${car.id}` },
             ],
           },
           {
@@ -116,12 +117,18 @@ export default function CarDetail() {
               { '@type': 'PropertyValue', name: 'Seats', value: car.seats },
               { '@type': 'PropertyValue', name: 'Consumption', value: `${car.consumption} ${car.type === 'EV' ? 'kWh/100km' : 'L/100km'}` },
             ],
-            url: `${SITE_URL}/car/${car.id}`,
+            url: `${SITE_URL}${localePrefix}/car/${car.id}`,
             offers: {
               '@type': 'Offer',
               price: car.price,
               priceCurrency: 'VND',
               availability: 'https://schema.org/InStock',
+              priceSpecification: {
+                '@type': 'PriceSpecification',
+                price: car.price,
+                priceCurrency: 'VND',
+                validFrom: new Date().toISOString().split('T')[0],
+              },
             },
             image: `${SITE_URL}/cars/${encodeURIComponent(car.id)}.webp`,
           },
@@ -222,20 +229,20 @@ export default function CarDetail() {
           transition={prefersReduced ? { duration: 0 } : { delay: 0.2 }}
         >
           <GlassCard className="p-5 sticky top-24 space-y-4">
-            <Link to={`/tco?car=${car.id}`}>
+            <Link to={`${useLocalePath('/tco')}?car=${car.id}`}>
               <AccentButton className="w-full mb-1" size="md">
                   {t('tco.calculate')}
                 </AccentButton>
               </Link>
 
-              <Link to={`/compare?car=${car.id}`}>
+              <Link to={`${useLocalePath('/compare')}?car=${car.id}`}>
                 <AccentButton variant="outline" className="w-full">
                   {t('carDetail.compare')}
                 </AccentButton>
               </Link>
 
             <div className="pt-4 border-t border-[var(--border-default)]">
-               <Link to="/car" className="inline-flex items-center gap-2 text-accent hover:text-accent-warm transition-colors">
+                <Link to={useLocalePath('/car')} className="inline-flex items-center gap-2 text-accent hover:text-accent-warm transition-colors">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
                 </svg>
@@ -268,7 +275,7 @@ export default function CarDetail() {
           </h2>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             {relatedCars.map((related: CarInfo) => (
-              <Link key={related.id} to={`/car/${related.id}`}>
+              <Link key={related.id} to={useLocalePath(`/car/${related.id}`)}>
                 <GlassCard className="p-4 h-full text-center group">
                   <div className="mb-3 flex justify-center">
                     <CarMedia

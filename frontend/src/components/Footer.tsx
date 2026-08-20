@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import { useI18n } from '../lib/i18n'
+import { useLocalePath } from '../lib/seo'
 import Logo from './Logo'
 
 const SOCIAL_LINKS = [
@@ -28,6 +29,7 @@ const SOCIAL_LINKS = [
 
 export default function Footer() {
   const { t } = useI18n()
+  const localePath = useLocalePath
 
   return (
     <footer
@@ -58,12 +60,12 @@ export default function Footer() {
               {t('footer.exploreTitle')}
             </h3>
             <nav className="flex flex-col gap-2 text-sm" style={{ color: 'var(--text-secondary)' }} aria-label={t('footer.exploreTitle')}>
-              <Link to="/tco" className="hover:text-accent transition-colors w-fit">{t('nav.tco')}</Link>
-              <Link to="/compare" className="hover:text-accent transition-colors w-fit">{t('nav.compare')}</Link>
-              <Link to="/car" className="hover:text-accent transition-colors w-fit">{t('nav.browse')}</Link>
-              <Link to="/wizard" className="hover:text-accent transition-colors w-fit">{t('nav.wizard')}</Link>
-              <Link to="/guides" className="hover:text-accent transition-colors w-fit">{t('nav.guides')}</Link>
-              <Link to="/methodology" className="hover:text-accent transition-colors w-fit">{t('nav.methodology')}</Link>
+              <Link to={localePath('/tco')} className="hover:text-accent transition-colors w-fit">{t('nav.tco')}</Link>
+              <Link to={localePath('/compare')} className="hover:text-accent transition-colors w-fit">{t('nav.compare')}</Link>
+              <Link to={localePath('/car')} className="hover:text-accent transition-colors w-fit">{t('nav.browse')}</Link>
+              <Link to={localePath('/wizard')} className="hover:text-accent transition-colors w-fit">{t('nav.wizard')}</Link>
+              <Link to={localePath('/guides')} className="hover:text-accent transition-colors w-fit">{t('nav.guides')}</Link>
+              <Link to={localePath('/methodology')} className="hover:text-accent transition-colors w-fit">{t('nav.methodology')}</Link>
             </nav>
           </div>
 
@@ -116,10 +118,10 @@ export default function Footer() {
               ))}
             </div>
             <nav className="flex flex-col gap-2 text-sm" style={{ color: 'var(--text-secondary)' }} aria-label={t('footer.legalTitle')}>
-              <Link to="/terms" className="hover:text-accent transition-colors w-fit">
+              <Link to={localePath('/terms')} className="hover:text-accent transition-colors w-fit">
                 {t('footer.terms')}
               </Link>
-              <Link to="/privacy" className="hover:text-accent transition-colors w-fit">
+              <Link to={localePath('/privacy')} className="hover:text-accent transition-colors w-fit">
                 {t('footer.privacy')}
               </Link>
             </nav>

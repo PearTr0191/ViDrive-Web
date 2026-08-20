@@ -1,7 +1,7 @@
 import { useParams, Link } from 'react-router-dom'
 import { motion, useReducedMotion } from 'framer-motion'
 import { useI18n } from '../lib/i18n'
-import { useSeoMetaSafe, JsonLd, SITE_URL } from '../lib/seo'
+import { useSeoMetaSafe, JsonLd, SITE_URL, useLocalePath, useCurrentLocale } from '../lib/seo'
 import GlassCard from '../components/ui/GlassCard'
 import {
   isValidGuideSlug,
@@ -23,25 +23,29 @@ export default function GuidePage() {
   const prefersReduced = useReducedMotion()
 
   const guideSlug = resolveGuideSlug(slug)
-  if (!guideSlug) return null
-
-  const g = getGuide(guideSlug)
-  const titleKey = guideI18nKey(guideSlug, 'title')
-  const body0Key = guideI18nKey(guideSlug, 'body0')
-  const body1Key = guideI18nKey(guideSlug, 'body1')
-  const body2Key = guideI18nKey(guideSlug, 'body2')
-  const ctaKey = guideI18nKey(guideSlug, 'cta')
+  // `getGuide` and the guide i18n-key helpers require a resolved slug; compute
+  // null-guarded fallbacks so `useSeoMetaSafe` runs unconditionally (rule of
+  // hooks). For an invalid slug the component returns null just below, so the
+  // fallback meta here is harmless.
+  const g = guideSlug ? getGuide(guideSlug) : null
+  const titleKey = guideSlug ? guideI18nKey(guideSlug, 'title') : 'page.guides'
+  const body0Key = guideSlug ? guideI18nKey(guideSlug, 'body0') : 'page.description'
+  const body1Key = guideSlug ? guideI18nKey(guideSlug, 'body1') : ''
+  const body2Key = guideSlug ? guideI18nKey(guideSlug, 'body2') : ''
+  const ctaKey = guideSlug ? guideI18nKey(guideSlug, 'cta') : ''
 
   const title = t(titleKey)
   const description = t(body0Key)
-  const canonicalUrl = `${SITE_URL}/guides/${guideSlug}`
+  const currentLocale = useCurrentLocale()
+  const canonicalUrl = `${SITE_URL}/${currentLocale}/guides${guideSlug ? `/${guideSlug}` : ''}`
 
   useSeoMetaSafe({
     title: `${title} — ViDrive`,
     description,
-    canonical: `/guides/${guideSlug}`,
     ogType: 'article',
   })
+
+  if (!guideSlug || !g) return null
 
   const sources = guideSources(guideSlug, t)
 
@@ -51,9 +55,9 @@ export default function GuidePage() {
       <JsonLd data={{
         '@context': 'https://schema.org',
         '@type': 'BreadcrumbList',
-        itemListElement: [
-          { '@type': 'ListItem', position: 1, name: t('nav.home'), item: SITE_URL },
-          { '@type': 'ListItem', position: 2, name: t('nav.guides'), item: `${SITE_URL}/guides` },
+         itemListElement: [
+          { '@type': 'ListItem', position: 1, name: t('nav.home'), item: `${SITE_URL}/${currentLocale}` },
+          { '@type': 'ListItem', position: 2, name: t('nav.guides'), item: `${SITE_URL}/${currentLocale}/guides` },
           { '@type': 'ListItem', position: 3, name: title, item: canonicalUrl },
         ],
       }} />
@@ -67,6 +71,10 @@ export default function GuidePage() {
         author: { '@type': 'Organization', name: 'ViDrive' },
         publisher: { '@type': 'Organization', name: 'ViDrive', url: SITE_URL },
         dateModified: new Date().toISOString().split('T')[0],
+        speakable: {
+          '@type': 'SpeakableSpecification',
+          cssSelector: ['.prose', 'h1'],
+        },
         mainEntityOfPage: {
           '@type': 'WebPage',
           '@id': canonicalUrl,
@@ -85,7 +93,7 @@ export default function GuidePage() {
         animate={prefersReduced ? false : { opacity: 1, y: 0 }}
       >
         <nav aria-label="Breadcrumb" className="text-sm text-[var(--text-secondary)]">
-          <Link to="/guides" className="hover:text-[var(--accent)] transition-colors">{t('nav.guides')}</Link>
+          <Link to={useLocalePath('/guides')} className="hover:text-[var(--accent)] transition-colors">{t('nav.guides')}</Link>
           <span aria-hidden="true" className="mx-2 opacity-40">›</span>
           <span className="text-[var(--text-primary)]">{title}</span>
         </nav>
@@ -113,7 +121,7 @@ export default function GuidePage() {
         animate={prefersReduced ? false : { opacity: 1, y: 0 }}
         transition={prefersReduced ? { duration: 0 } : { delay: 0.2, ease: 'backOut' }}
       >
-        <Link to={g.ctaRoute} className="inline-block">
+        <Link to={useLocalePath(g.ctaRoute)} className="inline-block">
           <GlassCard className="px-6 py-4 hover:border-accent/40 transition-colors">
             <span className="font-medium text-accent">{t(ctaKey)} →</span>
           </GlassCard>
