@@ -49,3 +49,6 @@ desktop.ini
 *.sln.docstates
 *.swp
 *.swo
+
+# Agent workspace (session-specific, do not commit)
+.kilo/
