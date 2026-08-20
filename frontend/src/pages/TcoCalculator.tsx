@@ -273,20 +273,29 @@ export default function TcoCalculator() {
 
   // Detect parametric fallback warnings from yearly data or main TCO result.
   // Surface as a floating notification that auto-dismisses after 8 seconds.
-  useEffect(() => {
-    const allWarnings: string[] = []
-    if (yearlyData?.warnings) allWarnings.push(...yearlyData.warnings)
-    if (result?.result?.warnings) allWarnings.push(...result.result.warnings)
+   useEffect(() => {
+     const allWarnings: string[] = []
+     if (yearlyData?.warnings) allWarnings.push(...yearlyData.warnings)
+     if (result?.result?.warnings) allWarnings.push(...result.result.warnings)
 
-    const hasFallback = allWarnings.includes('resale.fallbackToParametric')
-    if (hasFallback) {
-      const mlMaxYear = yearlyData?.ml_max_year ?? result?.result?.ml_max_year ?? displayedYears
-      setResaleWarning('resale.fallbackToParametric')
-      setMlMaxYear(mlMaxYear)
-      const timer = setTimeout(() => setResaleWarning(null), 5000)
-      return () => clearTimeout(timer)
-    }
-  }, [yearlyData?.warnings, result?.result?.warnings, yearlyData?.ml_max_year, result?.result?.ml_max_year])
+     const hasFallback = allWarnings.includes('resale.fallbackToParametric')
+     if (hasFallback) {
+       const mlMaxYear = yearlyData?.ml_max_year ?? result?.result?.ml_max_year ?? displayedYears
+       if (resaleWarning === null) {
+         setResaleWarning('resale.fallbackToParametric')
+       }
+       setMlMaxYear(mlMaxYear)
+     } else if (resaleWarning !== null) {
+       setResaleWarning(null)
+     }
+    }, [yearlyData?.warnings, result?.result?.warnings, yearlyData?.ml_max_year, result?.result?.ml_max_year, resaleWarning])
+
+  // Auto-dismiss the resale warning after 8 seconds from when it first appears.
+  useEffect(() => {
+    if (!resaleWarning) return
+    const timer = setTimeout(() => setResaleWarning(null), 8000)
+    return () => clearTimeout(timer)
+  }, [resaleWarning])
 
   const handleCalculate = () => {
     if (!selectedCar) return

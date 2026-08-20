@@ -89,10 +89,11 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             {navItems.map((item) => {
               const localePath = useLocalePath(item.path)
               return (
-              <NavLink
-                key={item.path}
-                to={localePath}
-                aria-current={strippedPath === item.path ? 'page' : undefined}
+               <NavLink
+                 key={item.path}
+                 to={localePath}
+                 end
+                 aria-current={strippedPath === item.path ? 'page' : undefined}
                 className={({ isActive }) =>
                   `relative px-4 py-2 text-sm font-medium transition-colors rounded-lg ${
                     isActive
@@ -234,10 +235,11 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 {navItems.map((item) => {
                   const localePath = useLocalePath(item.path)
                   return (
-                  <NavLink
-                    key={item.path}
-                    to={localePath}
-                    aria-current={strippedPath === item.path ? 'page' : undefined}
+                   <NavLink
+                     key={item.path}
+                     to={localePath}
+                     end
+                     aria-current={strippedPath === item.path ? 'page' : undefined}
                     className={({ isActive }) =>
                       `px-4 py-3 rounded-lg text-sm font-medium transition-colors ${
                         isActive ? 'font-semibold' : 'hover:bg-[var(--bg-surface)]'
