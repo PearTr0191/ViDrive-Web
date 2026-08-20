@@ -61,38 +61,47 @@ export function RootProviders({ children }: { children: ReactNode }) {
   )
 }
 
+// Cache-aware loaders: on client-side navigation the SSG-baked data (and the
+// react-query cache populated on first mount) is already present, so we must
+// NOT re-run the network fetch — react-router blocks painting the destination
+// route until the loader resolves, which made landing/browse feel slow vs
+// loader-less routes. We only fetch when the cache is empty.
 async function landingLoader() {
-  let cars: CarInfo[] = []
-  let config: any = null
+  let cars = ssgQueryClient.getQueryData<CarInfo[]>(['cars'])
+  let config = ssgQueryClient.getQueryData(['config'])
 
-  try {
-    cars = await api.getCars()
-  } catch {
-    cars = getStaticCars()
+  if (!cars) {
+    try {
+      cars = await api.getCars()
+    } catch {
+      cars = getStaticCars()
+    }
+    ssgQueryClient.setQueryData(['cars'], cars)
   }
 
-  try {
-    config = await api.getConfig()
-  } catch {
-    config = null
+  if (config === undefined) {
+    try {
+      config = await api.getConfig()
+    } catch {
+      config = null
+    }
+    ssgQueryClient.setQueryData(['config'], config)
   }
-
-  ssgQueryClient.setQueryData(['cars'], cars)
-  ssgQueryClient.setQueryData(['config'], config)
 
   return { cars, config }
 }
 
 async function browseLoader() {
-  let cars: CarInfo[] = []
+  let cars = ssgQueryClient.getQueryData<CarInfo[]>(['cars'])
 
-  try {
-    cars = await api.getCars()
-  } catch {
-    cars = getStaticCars()
+  if (!cars) {
+    try {
+      cars = await api.getCars()
+    } catch {
+      cars = getStaticCars()
+    }
+    ssgQueryClient.setQueryData(['cars'], cars)
   }
-
-  ssgQueryClient.setQueryData(['cars'], cars)
 
   return { cars }
 }
