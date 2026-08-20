@@ -41,6 +41,7 @@ function TcoCharts({
                   outerRadius={80}
                   fill="var(--chart-1)"
                   dataKey="value"
+                  isAnimationActive={false}
                 >
                   {pieData.map((_, index) => (
                     <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
@@ -76,7 +77,7 @@ function TcoCharts({
         <div>
           <h4 className="text-sm text-accent mb-3">{t('tco.cumulativeCost')}</h4>
           <div role="img" aria-label={`${t('tco.cumulativeCost')} over ${displayedYears} years`}>
-            {yearlyLoading ? (
+            {yearlyLoading && lineData.length === 0 ? (
               <div className="relative h-[250px] w-full">
                 <Skeleton className="h-[250px] w-full" />
                 <div className="absolute inset-0 flex items-center justify-center">
@@ -105,6 +106,7 @@ function TcoCharts({
                     strokeWidth={2}
                     dot={{ r: 4, fill: 'var(--accent)' }}
                     activeDot={{ r: 6 }}
+                    isAnimationActive={false}
                   />
                   <Line
                     type="monotone"
@@ -114,9 +116,10 @@ function TcoCharts({
                     strokeWidth={2}
                     dot={{ r: 4, fill: 'var(--chart-operating)' }}
                     activeDot={{ r: 6 }}
+                    isAnimationActive={false}
                   />
                   {result?.result.resale_guarantee_floor != null && lineData.some((row) => row.guarantee != null) && (
-                    <Line type="monotone" dataKey="guarantee" name={t('tco.guaranteeFloor')} stroke="var(--chart-guarantee)" strokeWidth={2} strokeDasharray="6 4" dot={{ r: 3, fill: 'var(--chart-guarantee)' }} activeDot={{ r: 5 }} />
+                    <Line type="monotone" dataKey="guarantee" name={t('tco.guaranteeFloor')} stroke="var(--chart-guarantee)" strokeWidth={2} strokeDasharray="6 4" dot={{ r: 3, fill: 'var(--chart-guarantee)' }} activeDot={{ r: 5 }} isAnimationActive={false} />
                   )}
                 </LineChart>
               </ResponsiveContainer>

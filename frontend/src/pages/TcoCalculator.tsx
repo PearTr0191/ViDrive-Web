@@ -86,6 +86,20 @@ const DEFAULTS = {
 
 const isCustomCarId = (id: string): boolean => id.startsWith('custom-')
 
+// Trigger a client-side download that does NOT revoke the object URL until the
+// browser has started the save. Revoking synchronously after a.click() can hand
+// the browser a released/empty blob, producing a corrupt file that won't open.
+function downloadBlob(blob: Blob, filename: string): void {
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000)
+}
+
 export default function TcoCalculator() {
   const { t, locale } = useI18n()
   useSeoMetaSafe({ title: `ViDrive - ${t('nav.tco')}`, description: t('page.tcoDescription') })
@@ -93,7 +107,8 @@ export default function TcoCalculator() {
   const phase1 = import.meta.env.VITE_COMPETITIVE_PHASE === '1'
   const variant = searchParams.get('v') ?? 'default'
   const [summaryCopied, setSummaryCopied] = useState(false)
-  const [pdfState, setPdfState] = useState<'idle' | 'exporting'>('idle')
+  const [pdfState, setPdfState] = useState<'idle' | 'exporting' | 'exported'>('idle')
+  const [csvExported, setCsvExported] = useState(false)
   // D1 — prefill a popular car so the calculator auto-runs on first load
   const [selectedCar, setSelectedCar] = useState<string>(searchParams.get('car') || '')
   const [city, setCity] = useState(searchParams.get('city') || DEFAULTS.city)
@@ -387,12 +402,9 @@ export default function TcoCalculator() {
       show_opp: showOppCost,
       result: result.result,
     })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = filename
-    a.click()
-    URL.revokeObjectURL(url)
+    downloadBlob(blob, filename)
+    setCsvExported(true)
+    window.setTimeout(() => setCsvExported(false), 2000)
   }
 
   const handleExportPdf = async () => {
@@ -411,13 +423,9 @@ export default function TcoCalculator() {
         result: result.result,
         loan: loanResult ?? undefined,
       })
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = filename
-      a.click()
-      URL.revokeObjectURL(url)
-      setPdfState('idle')
+      downloadBlob(blob, filename)
+      setPdfState('exported')
+      window.setTimeout(() => setPdfState('idle'), 2000)
     } catch (e) {
       console.error('PDF export failed:', e)
       setPdfState('idle')
@@ -1002,18 +1010,18 @@ export default function TcoCalculator() {
                                  </button>
                                }
                              >
-                               <button type="button" className="w-full text-left px-3 py-2 text-sm text-[var(--text-primary)] hover:bg-[var(--bg-elevated)] transition-colors truncate" onClick={handleExportCsv}>
-                                 {t('tco.exportCsv')}
-                               </button>
+                                <button type="button" className="w-full text-left px-3 py-2 text-sm text-[var(--text-primary)] hover:bg-[var(--bg-elevated)] transition-colors truncate" onClick={handleExportCsv}>
+                                  {csvExported ? t('tco.exported') : t('tco.exportCsv')}
+                                </button>
                                <button type="button" className="w-full text-left px-3 py-2 text-sm text-[var(--text-primary)] hover:bg-[var(--bg-elevated)] transition-colors truncate" onClick={handleCopyLink}>
                                 {linkCopied ? t('tco.shareUrlCopied') : t('tco.copyLink')}
                                 </button>
                                 <button type="button" className="w-full text-left px-3 py-2 text-sm text-[var(--text-primary)] hover:bg-[var(--bg-elevated)] transition-colors truncate" onClick={handleCopySummary}>
                                   {summaryCopied ? t('tco.summaryCopied') : t('tco.copySummary')}
                                 </button>
-                                <button type="button" className="w-full text-left px-3 py-2 text-sm text-[var(--text-primary)] hover:bg-[var(--bg-elevated)] transition-colors truncate" onClick={handleExportPdf} disabled={pdfState === 'exporting'}>
-                                  {pdfState === 'exporting' ? '...' : t('tco.exportPdf')}
-                                </button>
+                                 <button type="button" className="w-full text-left px-3 py-2 text-sm text-[var(--text-primary)] hover:bg-[var(--bg-elevated)] transition-colors truncate" onClick={handleExportPdf} disabled={pdfState === 'exporting'}>
+                                   {pdfState === 'exporting' ? '...' : pdfState === 'exported' ? t('tco.exported') : t('tco.exportPdf')}
+                                 </button>
                               </DropdownMenu>
                               <AccentButton
                                 variant="outline"
@@ -1029,7 +1037,19 @@ export default function TcoCalculator() {
                               >
                                 {t('tco.jumpToLoan')}
                              </AccentButton>
-                           </div>
+                             {(csvExported || pdfState === 'exported') && (
+                               <span
+                                 className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium text-[var(--accent)] bg-[rgba(var(--accent-rgb),0.12)] border border-[rgba(var(--accent-rgb),0.25)]"
+                                 role="status"
+                                 aria-live="polite"
+                                >
+                                 <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                                   <path d="M3.5 8.5l3 3 6-6.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+                                 </svg>
+                                 {t('tco.exported')}
+                               </span>
+                             )}
+                            </div>
                       </div>
                        <div className="flex flex-wrap justify-evenly items-center gap-x-3 gap-y-2 text-center">
                           <div className="flex-1 min-w-[110px]">
