@@ -1,0 +1,19 @@
+# Slim runtime dependencies for the ViDrive API.
+#
+# Excludes training-only packages (torch, transformers, openvino, optimum,
+# datasets, nncf, ...) so cloud installs/builds are fast and reliable.
+#
+# Pinned to match backend/requirements.txt. scikit-learn MUST match the
+# version the resale pickles were trained on or prediction breaks silently
+# (the cause of the "sklearn.utils.parallel.delayed" warning + slow, variable
+# responses on the old Render build).
+fastapi==0.141.1
+uvicorn==0.52.1
+pydantic==2.13.4
+numpy==2.1.2
+pandas==2.2.3
+scikit-learn==1.8.0
+joblib==1.4.2
+fpdf2==2.8.8
+fonttools==4.63.0
+pillow==12.3.0

@@ -562,7 +562,7 @@ export default function TcoCalculator() {
   const fuelUnit = selectedCarInfo?.type === 'EV' ? t('tco.fuelUnitEV') : t('tco.fuelUnitICE')
   const depreciationNet = result ? -result.result.resale : 0
   // Chart data for pie chart (cost composition)
-  const pieData = result ? [
+  const pieData = useMemo(() => result ? [
     { name: t('tco.msrp'), value: Math.abs(result.result.price) },
     { name: t('tco.regTax'), value: Math.abs(result.result.reg_tax) },
     { name: t('tco.fuel'), value: Math.abs(result.result.fuel) },
@@ -572,7 +572,7 @@ export default function TcoCalculator() {
       ? [{ name: t('tco.physicalDamageInsurance'), value: Math.abs(result.result.insurance_optional) }]
       : []),
     { name: t('tco.totalDepreciation'), value: Math.abs(result.result.depreciation) },
-  ].filter(d => d.value > 0) : []
+  ].filter(d => d.value > 0) : [], [result])
 
   // Chart data — two lines:
   //  - resale: car's residual value at each year (concave decline)
@@ -585,31 +585,13 @@ export default function TcoCalculator() {
     // from the raw floors: schedule ratios (0.914..1.0 for the 5-yr ramp; flat 1.0
     // for the 3-yr liquidity floor) are all > the decay ratio 1-0.095=0.905, so the
     // window ends at the first year whose floor-to-previous-floor ratio <= 0.905.
-    const rawFloors = (yearlyData?.yearly ?? []).map((e: YearlyBreakdownEntry) => e.resale_guarantee_value);
-    let vfWindowEnd = rawFloors.length;
-    for (let k = 1; k < rawFloors.length; k++) {
-      const cur = rawFloors[k], prev = rawFloors[k - 1];
-      if (cur != null && prev != null && prev > 0 && cur / prev <= 1 - 0.095 + 1e-9) { vfWindowEnd = k; break; }
-    }
-    const baseLineData: { year: string; resale: number; operating: number; cumulative: number; guarantee?: number | null }[] = yearlyData?.yearly
-    ? yearlyData.yearly.map((entry: YearlyBreakdownEntry, i) => ({
-        year: entry.year_label,
-                resale: entry.resale,
-        // VinFast buyback guarantee is a FIXED window: the per-year floor is the guarantee
-        // ONLY inside it; past it (S10 post-window decay, config.py
-        // VINFAST_FLOOR_DECAY=0.095) there is no buyback promise, so the dashed floor
-        // line terminates at the window end and the green market-resale line continues
-        // (merge into the main line where support ends). vfWindowEnd (above) is the
-        // first post-window year; keep the floor only where i < vfWindowEnd.
-        guarantee:
-          entry.resale_guarantee_value != null && i < vfWindowEnd
-            ? entry.resale_guarantee_value
-            : null,
-        operating: entry.operating_cumulative,
-        cumulative: entry.cumulative_tco,
-      }))
-    : result
-      ? Array.from({ length: years }, (_, i) => {
+    // baseLineData / lineData are memoized so the chart does NOT redraw on every
+    // unrelated state change (typing in other inputs, hovers) — only when the
+    // underlying yearly curve or the committed result actually changes.
+    const baseLineData = useMemo((): { year: string; resale: number; operating: number; cumulative: number; guarantee?: number | null }[] => {
+      if (!yearlyData?.yearly) {
+        if (!result) return []
+        return Array.from({ length: years }, (_, i) => {
           const year = i + 1
           const annualFuel = result.result.fuel / years
           const annualMaintBase = result.result.maint / years
@@ -642,17 +624,42 @@ export default function TcoCalculator() {
             cumulative: Math.round(cumulativeTco),
           }
         })
-      : []
+      }
+
+      const rawFloors = yearlyData.yearly.map((e: YearlyBreakdownEntry) => e.resale_guarantee_value)
+      let vfWindowEnd = rawFloors.length
+      for (let k = 1; k < rawFloors.length; k++) {
+        const cur = rawFloors[k], prev = rawFloors[k - 1]
+        if (cur != null && prev != null && prev > 0 && cur / prev <= 1 - 0.095 + 1e-9) { vfWindowEnd = k; break }
+      }
+
+      return yearlyData.yearly.map((entry: YearlyBreakdownEntry, i) => ({
+        year: entry.year_label,
+        resale: entry.resale,
+        // VinFast buyback guarantee is a FIXED window: the per-year floor is the guarantee
+        // ONLY inside it; past it (S10 post-window decay, config.py
+        // VINFAST_FLOOR_DECAY=0.095) there is no buyback promise, so the dashed floor
+        // line terminates at the window end and the green market-resale line continues
+        // (merge into the main line where support ends). vfWindowEnd (above) is the
+        // first post-window year; keep the floor only where i < vfWindowEnd.
+        guarantee:
+          entry.resale_guarantee_value != null && i < vfWindowEnd
+            ? entry.resale_guarantee_value
+            : null,
+        operating: entry.operating_cumulative,
+        cumulative: entry.cumulative_tco,
+      }))
+    }, [yearlyData, result, years])
 
   // Y0 = acquisition point: full car value, zero operating, net TCO = on_road - price
-    const lineData: { year: string; resale: number; operating: number; cumulative: number; guarantee?: number | null }[] = result
+    const lineData = useMemo((): { year: string; resale: number; operating: number; cumulative: number; guarantee?: number | null }[] => result
     ? [{
         year: 'Y0',
         resale: result.result.price,
         operating: 0,
         cumulative: Math.round(result.result.on_road - result.result.price),
       }, ...baseLineData]
-    : baseLineData
+    : baseLineData, [result, baseLineData])
 
     return (
     <div className="space-y-4">

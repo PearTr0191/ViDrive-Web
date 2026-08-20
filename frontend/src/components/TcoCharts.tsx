@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import { useI18n } from '../lib/i18n'
 import { formatVND, type TcoResponse } from '../lib'
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianGrid, LineChart, Line, Legend } from 'recharts'
@@ -9,7 +10,7 @@ const CHART_COLORS = ['var(--chart-1)', 'var(--chart-2)', 'var(--chart-3)', 'var
 type LineRow = { year: string; resale: number; operating: number; cumulative: number; guarantee?: number | null }
 type PieRow = { name: string; value: number }
 
-export default function TcoCharts({
+function TcoCharts({
   pieData,
   lineData,
   displayedYears,
@@ -147,3 +148,5 @@ export default function TcoCharts({
     </GlassCard>
   )
 }
+
+export default memo(TcoCharts)

@@ -11,6 +11,7 @@ import uuid
 from collections import defaultdict
 from datetime import date, datetime
 from pathlib import Path
+from contextlib import asynccontextmanager
 from typing import Any, Literal
 
 from fastapi import BackgroundTasks, FastAPI, HTTPException, Request
@@ -90,16 +91,35 @@ from src.persistence import (
     save_result,
 )
 from src.wizard import get_wizard_car
+from src.ml_model import get_predictor
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Warm the ML resale model at startup so the first request on a warm
+    # instance does not pay the (lazy) model-load cost. Helps Render free-tier
+    # latency where every cold millisecond counts.
+    try:
+        get_predictor()
+    except Exception:  # pragma: no cover - never block startup on model issues
+        pass
+    yield
+
 
 app = FastAPI(
     title="ViDrive TCO API",
     description="Vietnamese Total Cost of Ownership calculator for vehicles.",
     version=APP_VERSION,
+    lifespan=lifespan,
 )
 
 @app.get("/")
 def read_root():
     return {"status": "ok", "message": "ViDrive backend is running"}
+
+
+@app.get("/healthz")
+def healthz():
+    return {"status": "ok"}
 
 app.add_middleware(
     CORSMiddleware,

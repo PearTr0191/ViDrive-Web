@@ -93,6 +93,12 @@ class ResalePredictor:
         if GB_PATH.exists():
             try:
                 self._gb = joblib.load(GB_PATH)
+                # Mirror the RF guard: pin n_jobs=1 so any parallel-capable
+                # estimator never spawns loky workers (which would emit the
+                # benign sklearn "delayed should be used with Parallel" warning
+                # and add spawn overhead on every TCO request).
+                if hasattr(self._gb, "n_jobs"):
+                    self._gb.n_jobs = 1
             except Exception as e:  # pragma: no cover - defensive
                 print(f"[ml_model] GB model load failed: {e}")
                 self._gb = None
@@ -359,7 +365,11 @@ class ResalePredictor:
 
             try:
                 if self._rf is not None and Xv is not None:
-                    tree_preds = [float(t.predict(Xv)[0]) for t in self._rf.estimators_]
+                    # Xv is already validated by the ensemble predict above; skip the
+                    # per-tree re-validation (~600x) so predict_resale stays cheap on
+                    # constrained CPUs (this is the dominant cost on the old sklearn
+                    # path that Render was running).
+                    tree_preds = [float(t.predict(Xv, check_input=False)[0]) for t in self._rf.estimators_]
                     result["ml_std"] = float(np.std(tree_preds))
                 else:
                     result["ml_std"] = None
