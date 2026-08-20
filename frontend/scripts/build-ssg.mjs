@@ -77,6 +77,29 @@ function postProcessSitemap() {
   writeFileSync(sitemapPath, `${header}\n${rebuilt}\n</urlset>\n`)
 }
 
+// Detect build completion via artifacts: vite-plugin-react-ssg can leave open
+// handles (preview server/watcher) that stop the `close` event from firing, so
+// we watch for index.html + sitemap.xml plus a stable prerendered-HTML count,
+// then consider the build flushed.
+async function waitForBuildArtifacts(maxWait = 30000) {
+  const start = Date.now()
+  let prev = -1
+  while (Date.now() - start < maxWait) {
+    const hasIndex = existsSync(resolve(distDir, 'index.html'))
+    const hasSitemap = existsSync(resolve(distDir, 'sitemap.xml'))
+    if (hasIndex && hasSitemap) {
+      const n = walk(distDir).length
+      if (n > 0 && n === prev) {
+        await new Promise(r => setTimeout(r, 800))
+        return true
+      }
+      prev = n
+    }
+    await new Promise(r => setTimeout(r, 600))
+  }
+  return false
+}
+
 // E6 / plan Phase 6: long-cache immutable hashed assets; no-cache HTML; HSTS.
 function writeHeaders() {
   const headers = `/*
@@ -127,7 +150,14 @@ function startBackend() {
 
     proc.on('error', (err) => {
       clearTimeout(timeout)
-      reject(err)
+      // `python` not on PATH (e.g. Cloudflare Pages build env) — fall back to
+      // static data instead of treating the absence as a fatal build error.
+      if (err.code === 'ENOENT') {
+        console.warn('[build-ssg] python not found — skipping local backend, using static fallback data')
+        resolvePromise(null)
+      } else {
+        reject(err)
+      }
     })
 
     proc.on('exit', (code) => {
@@ -179,22 +209,33 @@ async function main() {
 
   const exitCode = await new Promise((resolve) => {
     let resolved = false
-    vite.on('close', (code) => {
-      if (!resolved) { resolved = true; resolve(code) }
-    })
+    const finish = (code) => {
+      if (!resolved) { resolved = true; resolve(code || 0) }
+    }
+    vite.on('close', finish)
     vite.on('error', (err) => {
       console.error('[build-ssg] Vite process error:', err.message)
-      if (!resolved) { resolved = true; resolve(1) }
+      finish(1)
     })
-    // Fallback: the vite-plugin-react-ssg SSG step can leave open handles
-    // (watcher/server) that prevent the `close` event from firing. After 30s
-    // with no close event, assume the build finished successfully and proceed
-    // to post-processing — the dist/ artifacts are already on disk.
+    // vite-plugin-react-ssg can leave open handles (preview server/watcher)
+    // that prevent the `close` event from firing, so detect completion from
+    // the artifacts instead of a fixed dead wait: once index.html and
+    // sitemap.xml exist and the prerendered-HTML count is stable, the SSG
+    // flush is done and we can terminate the lingering process and proceed.
+    ;(async () => {
+      const ok = await waitForBuildArtifacts()
+      if (ok && !resolved) {
+        console.log('[build-ssg] build artifacts stable — terminating vite and proceeding')
+        vite.kill('SIGTERM')
+        finish(0)
+      }
+    })()
+    // Ultimate safety net: never block forever.
     setTimeout(() => {
       if (!resolved) {
-        console.warn('[build-ssg] Vite process did not exit within 30s; proceeding with post-build steps')
-        resolved = true
-        resolve(0)
+        console.warn('[build-ssg] Vite did not exit within 30s; proceeding with post-build steps')
+        vite.kill('SIGTERM')
+        finish(0)
       }
     }, 30000)
   })
