@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "include": ["/*"],
+  "exclude": [
+    "/sitemap.xml",
+    "/robots.txt",
+    "/_headers",
+    "/favicon-dark.svg",
+    "/favicon-light.svg",
+    "/icons.svg",
+    "/logo-dark.png",
+    "/logo-light.png",
+    "/og-tco.png",
+    "/google*.html",
+    "/baidu-verify*.html",
+    "/cars/*",
+    "/assets/*",
+    "/*.html"
+  ]
+}
