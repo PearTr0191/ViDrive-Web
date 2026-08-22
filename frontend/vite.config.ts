@@ -27,9 +27,10 @@ const STATIC_ROUTES = [
 ]
 
 // Generate locale-prefixed variants of a base path: /vi/* and /en/*
-// The root '/' becomes ['/vi', '/en']
+// The root '/' is prerendered with the default-locale (vi) landing:
+// ['/', '/vi', '/en'] so the sitemap covers the canonical root URL.
 function withLocales(path: string): string[] {
-  if (path === '/') return ['/vi', '/en']
+  if (path === '/') return ['/', '/vi', '/en']
   return [`/vi${path}`, `/en${path}`]
 }
 

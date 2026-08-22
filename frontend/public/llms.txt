@@ -1,0 +1,18 @@
+# ViDrive
+
+> Free, open-source total cost of ownership (TCO) calculator for cars in Vietnam. Compare EV, hybrid, and ICE vehicles across 1-20 years. Estimate on-road price, depreciation, maintenance, insurance, and financing with transparent, sourced methodology.
+
+## Tools
+- [TCO Calculator](https://vidrive-web.pages.dev/vi/tco): Total cost of ownership for any Vietnamese-market car
+- [Compare Cars](https://vidrive-web.pages.dev/vi/compare): Side-by-side TCO comparison of 2-4 cars
+- [Browse Cars](https://vidrive-web.pages.dev/vi/car): Browse 80+ cars available in Vietnam with specs and prices
+- [Custom Car Wizard](https://vidrive-web.pages.dev/vi/wizard): Build a custom car profile with your own inputs
+
+## Resources
+- [Methodology](https://vidrive-web.pages.dev/vi/methodology): How ViDrive calculates TCO — data sources, formulas, depreciation models
+- [Guides](https://vidrive-web.pages.dev/vi/guides): Car ownership cost guides for Vietnam
+- [Terms of Use](https://vidrive-web.pages.dev/vi/terms)
+- [Privacy Policy](https://vidrive-web.pages.dev/vi/privacy)
+
+## Source
+- [GitHub](https://github.com/PearTr0191): Open-source code and methodology

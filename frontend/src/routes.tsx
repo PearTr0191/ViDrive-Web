@@ -134,16 +134,6 @@ async function carLoader({ params }: LoaderFunctionArgs) {
   return { car }
 }
 
-function localeRedirectLoader({ request }: LoaderFunctionArgs) {
-  const url = new URL(request.url)
-  const acceptLang = request.headers.get('accept-language') || ''
-  const detected: Locale = acceptLang.startsWith('en') ? 'en'
-    : acceptLang.startsWith('vi') ? 'vi'
-    : DEFAULT_LOCALE
-  const target = url.search ? `/${detected}${url.search}` : `/${detected}`
-  return redirect(target)
-}
-
 function localeLayoutLoader({ params }: LoaderFunctionArgs) {
   const { locale } = params
   if (locale !== 'en' && locale !== 'vi') {
@@ -172,12 +162,11 @@ export const routes: RouteObject[] = [
   {
     path: '/',
     element: (
-      <RootProviders>
+      <RootProviders initialLocale={DEFAULT_LOCALE}>
         <RootApp />
       </RootProviders>
     ),
-    loader: localeRedirectLoader,
-    children: [],
+    children: [{ index: true, element: <Landing />, loader: landingLoader }],
   },
   {
     path: '/:locale',

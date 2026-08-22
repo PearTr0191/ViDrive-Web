@@ -28,9 +28,10 @@ const basePaths = [
 ]
 
 // Dual-locale SSG: generate /vi/* and /en/* for every route.
-// The root '/' is excluded (it's a client-side JS redirect, no static HTML needed).
+// The root '/' is prerendered with the default-locale (vi) landing so crawlers
+// and AI engines see the full head + JSON-LD without a JS redirect.
 const paths: string[] = basePaths.flatMap(p => {
-  if (p === '/') return ['/vi', '/en']
+  if (p === '/') return ['/', '/vi', '/en']
   return [`/vi${p}`, `/en${p}`]
 })
 
