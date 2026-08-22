@@ -14,9 +14,15 @@ const DEFAULT_OG_IMAGE = `${SITE_URL}/og-tco.webp`
 const DEFAULT_OG_IMAGE_ALT =
   'ViDrive — công cụ tính tổng chi phí sở hữu ô tô (TCO) minh bạch tại Việt Nam: so sánh xe điện, hybrid và xăng'
 const DEFAULT_DESCRIPTION =
-  'Tính chi phí sở hữu ô tô (TCO) tại Việt Nam: so sánh xe điện, hybrid và xăng, ' +
-  'định giá xe cũ, ước tính lăn bánh, khấu hao, bảo dưỡng và tài chính. ' +
-  'Minh bạch, tức thì. EV vs ICE vs hybrid TCO & used-car valuation calculator.'
+  'Tính chi phí sở hữu ô tô (TCO — chi phí nuôi xe, nuôi ô tô) tại Việt Nam: ' +
+  'so sánh xe điện, hybrid và xăng, định giá xe cũ, ước tính lăn bánh, khấu hao, ' +
+  'bảo dưỡng và tài chính. Công cụ tính chi phí xe độc lập đầu tiên tại Việt Nam. ' +
+  'EV vs ICE vs hybrid TCO & used-car valuation calculator. Nuôi xe Toyota, VinFast, Honda, Mazda — tất cả trong một giao diện.'
+
+const DEFAULT_KEYWORDS_VI =
+  'nuôi xe, nuôi xe điện, nuôi ô tô, chi phí sở hữu ô tô, tính chi phí sở hữu ô tô, TCO xe, tính chi phí xe, tổng chi phí ô tô, khấu hao, bảo dưỡng, nhiên liệu xe, so sánh xe, giá bán lại xe, chi phí vận hành xe, chi phí xe hàng tháng, nuôi xe Toyota, nuôi xe VinFast'
+const DEFAULT_KEYWORDS_EN =
+  'car TCO, total cost of ownership car, car ownership cost calculator, Vietnam car cost, EV TCO, hybrid TCO, ICE TCO, car depreciation, car fuel cost, car maintenance cost, used car resale value, car comparison calculator'
 
 export interface SeoMetaInput {
   title?: string
@@ -97,6 +103,7 @@ export function useSeoMetaSafe(meta: SeoMetaInput): void {
     ogImageAlt: meta.ogImageAlt ?? DEFAULT_OG_IMAGE_ALT,
     ogType: meta.ogType ?? 'website',
     ogLocale: currentLocale === 'vi' ? 'vi_VN' : 'en_US',
+    keywords: currentLocale === 'vi' ? DEFAULT_KEYWORDS_VI : DEFAULT_KEYWORDS_EN,
     twitterCard: 'summary_large_image',
     twitterTitle: String(title),
     twitterDescription: String(description),

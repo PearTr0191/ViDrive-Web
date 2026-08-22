@@ -10,7 +10,7 @@ import { api, formatVND, type CarInfo, type ConfigResponse } from '../lib'
 import { useI18n } from '../lib/i18n'
 import { useLocalePath } from '../lib/seo'
 import { useTheme } from '../lib/theme'
-import { useSeoMetaSafe, JsonLd, SITE_URL } from '../lib/seo'
+import { useSeoMetaSafe, JsonLd, SITE_URL, SITE_NAME } from '../lib/seo'
 import { useQuery } from '@tanstack/react-query'
 import SocialProofLine from '../components/SocialProofLine'
 
@@ -116,6 +116,21 @@ export default function Landing() {
           name: t(step.titleKey),
           text: t(step.descKey, step.count !== undefined ? { count: step.count } : undefined),
         })),
+      }} />
+      {/* Speakable — tells AI/voice engines which DOM regions are best
+          for spoken answers (FAQ + how-it-works + hero h1). */}
+      <JsonLd data={{
+        '@context': 'https://schema.org',
+        '@type': 'WebPage',
+        '@id': SITE_URL,
+        name: SITE_NAME,
+        url: SITE_URL,
+        inLanguage: locale,
+        speakable: {
+          '@type': 'SpeakableSpecification',
+          cssSelector: ['#faq', '#how-it-works', 'h1'],
+        },
+        isPartOf: { '@type': 'WebSite', '@id': SITE_URL, name: SITE_NAME, url: SITE_URL },
       }} />
       {/* Hero Section */}
       <section ref={heroRef} className="relative min-h-[82vh] flex flex-col items-center justify-center text-center overflow-hidden py-16">
@@ -335,7 +350,7 @@ export default function Landing() {
       </section>
 
                   {/* How It Works — Vertical Timeline (moved above FAQ for the onboarding arc) */}
-      <section className="max-w-3xl mx-auto">
+      <section id="how-it-works" className="max-w-3xl mx-auto">
         <motion.h2
           className="text-3xl md:text-4xl font-heading font-bold text-center mb-16"
           style={{ color: 'var(--text-primary)' }}
@@ -389,7 +404,7 @@ export default function Landing() {
       </section>
 
       {/* J — FAQ accordion */}
-      <section className="max-w-3xl mx-auto">
+      <section id="faq" className="max-w-3xl mx-auto">
         <h2 className="text-2xl md:text-3xl font-heading font-bold text-center text-[var(--text-primary)] mb-8">{t('landing.faqTitle')}</h2>
         <div className="space-y-3">
           {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((n) => (
