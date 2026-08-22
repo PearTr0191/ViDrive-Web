@@ -1,0 +1,37 @@
+name: Data validation
+
+# Fail-loud guard for the data files the automation and humans edit:
+# assumptions.json, resale_anchors.json, cars.json, provenance files.
+# Blocks PRs that introduce errors; warnings are reported but non-blocking.
+
+on:
+  push:
+    paths:
+      - "backend/data/**"
+      - "backend/src/config.py"
+      - "frontend/public/cars/**"
+  pull_request:
+    paths:
+      - "backend/data/**"
+      - "backend/src/config.py"
+      - "frontend/public/cars/**"
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install minimal deps
+        run: pip install requests
+
+      - name: Validate data files
+        run: python backend/scripts/validate_data.py

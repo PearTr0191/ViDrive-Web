@@ -29,7 +29,7 @@ HEADERS = {
 }
 
 OUT_FILE = HERE / "oto_real.json"
-CURRENT_YEAR = 2026
+from pipeline_common import CURRENT_YEAR
 RETENTION_LO, RETENTION_HI = 0.15, 0.95
 MAX_ANNUAL_KM = 100_000
 MIN_ANNUAL_KM = 5_000

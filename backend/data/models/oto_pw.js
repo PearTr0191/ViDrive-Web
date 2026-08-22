@@ -8,7 +8,7 @@ const fs = require("fs");
 const path = require("path");
 
 const SCROLLS = parseInt(process.argv[2] || "12", 10);
-const CURRENT_YEAR = 2026;
+const CURRENT_YEAR = new Date().getFullYear();
 
 (async () => {
   const browser = await chromium.launch({ headless: true, args: ["--no-sandbox"] });

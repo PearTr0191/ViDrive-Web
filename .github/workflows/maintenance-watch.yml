@@ -1,0 +1,95 @@
+name: Maintenance menu watch
+
+# Quarterly SIGNAL-ONLY run: derives expected annual maintenance from published
+# dealer/OEM service menus, refreshes backend/data/maintenance_sources.json
+# provenance, and opens an issue when menu-derived costs deviate >25% from the
+# catalogue calibration. Constants are NEVER edited automatically.
+
+on:
+  schedule:
+    - cron: "0 4 2 1,4,7,10 *" # 02nd of Jan/Apr/Jul/Oct, 04:00 UTC = 11:00 ICT
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: maintenance-watch
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install requests
+
+      - name: Run watcher (provenance may update)
+        id: run
+        run: |
+          set +e
+          python backend/scripts/fetch_maintenance.py | tee maintenance-output.txt
+          code=$?
+          echo "exit_code=$code" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: Commit provenance updates
+        if: steps.run.outputs.exit_code == '2' || steps.run.outputs.exit_code == '3'
+        run: |
+          git config user.name "vidrive-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add backend/data/maintenance_sources.json
+          git commit -m "chore(data): maintenance provenance $(date -u +%F)" || echo "nothing to commit"
+          git push
+
+      - name: Open issue on deviations
+        if: steps.run.outputs.exit_code == '3'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const body = [
+              '_Automated quarterly maintenance-menu check. SIGNAL ONLY — apply any',
+              'change via `car_ops.py` in a reviewed PR after verifying sources._',
+              '',
+              ...fs.readFileSync('maintenance-output.txt', 'utf8').split('\n'),
+            ].join('\n');
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `Maintenance drift proposals ${new Date().toISOString().slice(0, 10)}`,
+              labels: ['maintenance-watch', 'automated'],
+              body,
+            });
+
+      - name: Open issue on invalid run
+        if: steps.run.outputs.exit_code == '4'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const title = 'Maintenance watch failed';
+            const { data: issues } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner, repo: context.repo.repo,
+              state: 'open', labels: 'maintenance-watch',
+            });
+            const body = [
+              '`fetch_maintenance.py` exited INVALID — no source yielded data.',
+              `Run: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+            ].join('\n');
+            const existing = issues.find((i) => i.title === title);
+            if (existing) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner, repo: context.repo.repo,
+                issue_number: existing.number, body,
+              });
+            } else {
+              await github.rest.issues.create({
+                owner: context.repo.owner, repo: context.repo.repo,
+                title, labels: ['maintenance-watch', 'automated'], body,
+              });
+            }

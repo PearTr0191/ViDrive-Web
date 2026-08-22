@@ -38,6 +38,48 @@ def encode_features(df: pd.DataFrame) -> pd.DataFrame:
     return result
 
 
+REAL_UPSAMPLE_FACTOR = 20  # synthetic:real ~ 1.1:1 after upsample
+
+
+def prepare_training_matrix(rows: list[dict], seed: int = 42,
+                            ) -> tuple[np.ndarray, np.ndarray]:
+    """Feature matrix + target with the canonical 20x real-row upsampling.
+
+    Single source of truth shared by train_models.main(), the stress-gate's
+    fit_ensemble (Mode B LOCO), and phase5c_train_eval — the three previously
+    duplicated implementations whose drift risk this eliminates.
+    """
+    df = pd.DataFrame(rows)
+    df["log_price"] = np.log(df["price"].astype(float) + 1)
+    df["km_per_year"] = df["annual_km"]
+    df["is_real"] = df["source"].notna() & (df["source"] != "ORIG")
+    feats = encode_features(df).to_numpy(dtype=float)
+    y = df["resale_pct"].to_numpy(dtype=float)
+    is_real = df["is_real"].to_numpy(bool)
+    real_idx = np.where(is_real)[0]
+    synth_idx = np.where(~is_real)[0]
+    train_idx = np.concatenate([synth_idx, np.repeat(real_idx, REAL_UPSAMPLE_FACTOR)])
+    rng = np.random.RandomState(seed)
+    rng.shuffle(train_idx)
+    return feats[train_idx], y[train_idx]
+
+
+def train_ensemble(rows: list[dict], seed: int = 42, n_jobs: int = -1
+                   ) -> tuple[RandomForestRegressor, GradientBoostingRegressor]:
+    X_train, y_train = prepare_training_matrix(rows, seed=seed)
+    rf = RandomForestRegressor(
+        n_estimators=600, max_depth=15, min_samples_leaf=2,
+        random_state=seed, n_jobs=n_jobs,
+    )
+    rf.fit(X_train, y_train)
+    gb = GradientBoostingRegressor(
+        n_estimators=500, max_depth=5, learning_rate=0.03,
+        min_samples_leaf=4, subsample=0.8, random_state=seed,
+    )
+    gb.fit(X_train, y_train)
+    return rf, gb
+
+
 def main():
     df = load_data()
     feature_cols = encode_features(df)
@@ -49,38 +91,17 @@ def main():
     X_test = X[is_real]
     y_test = y[is_real]
 
-    # Upsample real data 20x (synthetic:real ~ 1.1:1 after upsample) so real-world
-    # patterns dominate training, counteracting the parametric-synthetic contamination
-    # in training_data.json (2,157 synthetic vs 764 real rows). Real rows carry true
-    # Vietnamese market depreciation (bonbanh+oto); synthetic rows are parametric samples.
-    real_idx = np.where(is_real)[0]
-    synth_idx = np.where(~is_real)[0]
-    train_idx = np.concatenate([synth_idx, np.repeat(real_idx, 20)])
-    np.random.seed(42)
-    np.random.shuffle(train_idx)
-    X_train = X[train_idx]
-    y_train = y[train_idx]
+    # Upsample real data 20x so real-world patterns dominate training, counteracting
+    # the parametric-synthetic contamination in training_data.json (2,157 synthetic vs
+    # 764 real rows). Real rows carry true Vietnamese market depreciation
+    # (bonbanh+oto); synthetic rows are parametric samples.
+    rf, gb = train_ensemble(df.to_dict("records"))
 
-    rf = RandomForestRegressor(
-        n_estimators=600,
-        max_depth=15,
-        min_samples_leaf=2,
-        random_state=42,
-        n_jobs=-1,
-    )
-    rf.fit(X_train, y_train)
-
-    gb = GradientBoostingRegressor(
-        n_estimators=500,
-        max_depth=5,
-        learning_rate=0.03,
-        min_samples_leaf=4,
-        subsample=0.8,
-        random_state=42,
-    )
-    gb.fit(X_train, y_train)
-
-    print(f"Train: {len(X_train)} rows ({len(synth_idx)} synth + {len(real_idx)*20} upsampled real)  |  Test: {len(X_test)} real-only rows")
+    synth_count = int((~df["is_real"]).sum())
+    real_count = int(df["is_real"].sum())
+    print(f"Train: {synth_count + real_count * REAL_UPSAMPLE_FACTOR} rows "
+          f"({synth_count} synth + {real_count * REAL_UPSAMPLE_FACTOR} upsampled real)"
+          f"  |  Test: {len(X_test)} real-only rows")
 
     for name, model in [("RF", rf), ("GB", gb)]:
         preds = model.predict(X_test)

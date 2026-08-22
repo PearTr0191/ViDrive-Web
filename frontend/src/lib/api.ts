@@ -69,6 +69,8 @@ export interface TcoResult {
   insurance_optional?: number
   inspection_periodic?: number
   rush_hour_applied?: boolean
+  fuel_price_mode?: 'forecast_avg' | 'current'
+  fuel_price_vnd?: number | null
   parking_toll: {
     monthly_parking: number
     monthly_toll: number
@@ -238,6 +240,7 @@ export const api = {
     rush_hour?: boolean
     include_insurance?: boolean
     include_parking_toll?: boolean
+    fuel_price_mode?: 'forecast_avg' | 'current'
   }): Promise<TcoResponse> {
     const res = await safeFetch(`${API_BASE}/api/tco/calculate`, {
       method: 'POST',
@@ -260,6 +263,7 @@ export const api = {
     rush_hour?: boolean
     include_insurance?: boolean
     include_parking_toll?: boolean
+    fuel_price_mode?: 'forecast_avg' | 'current'
   }): Promise<{ results: TcoResult[]; car_ids: string[] }> {
     const res = await safeFetch(`${API_BASE}/api/tco/compare`, {
       method: 'POST',
@@ -308,6 +312,7 @@ export const api = {
     rush_hour?: boolean
     include_insurance?: boolean
     include_parking_toll?: boolean
+    fuel_price_mode?: 'forecast_avg' | 'current'
   }): Promise<TcoResponse> {
     const res = await safeFetch(`${API_BASE}/api/wizard/custom`, {
       method: 'POST',
@@ -375,6 +380,7 @@ export const api = {
     years: number
     city_ratio: number
     rush_hour?: boolean
+    fuel_price_mode?: 'forecast_avg' | 'current'
   }): Promise<BreakdownResponse> {
     const res = await safeFetch(`${API_BASE}/api/tco/breakdown`, {
       method: 'POST',
@@ -394,6 +400,7 @@ export const api = {
      city_ratio?: number
      rush_hour?: boolean
      include_parking_toll?: boolean
+     fuel_price_mode?: 'forecast_avg' | 'current'
    }): Promise<YearlyBreakdownResponse> {
     const res = await safeFetch(`${API_BASE}/api/tco/yearly-breakdown`, {
       method: 'POST',

@@ -1,0 +1,66 @@
+name: Catalogue drift watch
+
+# SIGNAL ONLY — never edits data files. Produces a markdown drift report
+# (listing-price retention vs calibrated anchors + MSRP drift) and posts it
+# to a rolling tracking issue. Act via car_ops.py update-price in a PR.
+
+on:
+  schedule:
+    - cron: "0 3 * * 6" # Saturdays 03:00 UTC = 10:00 ICT
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: catalogue-watch
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Produce drift report
+        run: python backend/scripts/catalogue_watch.py --out drift-report.md
+
+      - name: Post report to tracking issue
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const body = [
+              '_Automated weekly drift report — signal only, no data was changed._',
+              '',
+              ...fs.readFileSync('drift-report.md', 'utf8').split('\n'),
+            ].join('\n');
+            const title = 'Catalogue drift report';
+            const { data: issues } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'catalogue-watch',
+            });
+            const existing = issues.find((i) => i.title === title);
+            if (existing) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: existing.number,
+                body,
+              });
+            } else {
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title,
+                labels: ['catalogue-watch', 'automated'],
+                body,
+              });
+            }

@@ -43,7 +43,7 @@ HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
     "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36"
 }
-CURRENT_YEAR = 2026
+from pipeline_common import CURRENT_YEAR
 MAX_AGE = 12  # capture the full depreciation curve (y1..y12)
 
 # (oto_slug, bonbanh_brand, bonbanh_model, catalog_id)

@@ -1,6 +1,56 @@
 from datetime import date
 from pathlib import Path
+import json
 import os as _os
+
+# --- External assumptions loader -------------------------------------------------
+# Mutable external-world values live in backend/data/assumptions.json (fuel prices,
+# fees, insurance, maintenance calibration, parking/tolls) so scheduled jobs and
+# humans edit DATA, never this Python source. This module loads them once and
+# re-exports every original constant name, so downstream imports are unchanged.
+# resale_anchors.json -> CALIBRATED_RESALE_ANCHORS (bot-writable via the ML pipeline).
+
+_DATA_DIR = Path(__file__).resolve().parent.parent / "data"
+
+
+def _load_assumptions() -> dict:
+    """Load assumptions.json, validating presence of all required constant keys."""
+    path = _DATA_DIR / "assumptions.json"
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError as exc:
+        raise RuntimeError(f"assumptions.json missing at {path}") from exc
+    return raw
+
+
+def _load_resale_anchors() -> tuple[dict[str, dict[int, float]], dict]:
+    """Load resale_anchors.json into {car_id: {year:int -> retention:float}}."""
+    path = _DATA_DIR / "resale_anchors.json"
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError as exc:
+        raise RuntimeError(f"resale_anchors.json missing at {path}") from exc
+    meta = raw.pop("_meta", {})
+    anchors: dict[str, dict[int, float]] = {}
+    for car_id, years in raw.items():
+        anchors[car_id] = {int(y): float(r) for y, r in years.items()}
+    return anchors, meta
+
+
+_ASSUMPTIONS: dict = _load_assumptions()
+ASSUMPTIONS_META: dict[str, dict] = _ASSUMPTIONS.pop("_meta", {})
+_CALIBRATED_RESALE_ANCHORS_RAW, RESALE_ANCHORS_META = _load_resale_anchors()
+
+
+def _req(name: str):
+    """Fetch a required assumption, failing loudly when absent."""
+    try:
+        return _ASSUMPTIONS[name]
+    except KeyError:
+        raise RuntimeError(
+            f"assumptions.json is missing required constant '{name}'. "
+            f"Restore the key or re-run backend/scripts/validate_data.py."
+        ) from None
 
 # --- Fuel Prices (VND/liter or kWh, 5-year defensible forecast as of Aug 2026) ---
 # Anchored on EIA Brent consensus ~$63/bbl avg 2027-2030 + restored taxes
@@ -10,20 +60,20 @@ import os as _os
 # --- Fuel Prices: CURRENT retail (used by calculation) vs 5-yr FORECAST ---
 # Calculation anchors on *CURRENT* retail for an "as-of-today" TCO window;
 # FORECAST values are retained for the Assumptions/Methodology view only.
-PETROL_PRICE_CURRENT_VND = 22320   # RON 95-III (E10) vùng 1 — post Aug-6 2026 adjustment
-PETROL_PRICE_FORECAST_VND = 22000  # RON 95-III — 5-yr forecast base case (Aug 2026 calibration)
-DIESEL_PRICE_CURRENT_VND = 27540   # DO 0.05S-II vùng 1 — post Aug-6 2026 adjustment
-DIESEL_PRICE_FORECAST_VND = 23500  # DO 0.05S-II — 5-yr forecast (post-crisis mean reversion)
+PETROL_PRICE_CURRENT_VND = int(_req("PETROL_PRICE_CURRENT_VND"))   # RON 95-III (E10) vùng 1
+PETROL_PRICE_FORECAST_VND = int(_req("PETROL_PRICE_FORECAST_VND"))  # RON 95-III 5-yr forecast base case
+DIESEL_PRICE_CURRENT_VND = int(_req("DIESEL_PRICE_CURRENT_VND"))   # DO 0.05S-II vùng 1
+DIESEL_PRICE_FORECAST_VND = int(_req("DIESEL_PRICE_FORECAST_VND"))  # DO 0.05S-II 5-yr forecast
 # Backward-compat aliases (kept so persisted ConfigProposals / breakdown labels keep working).
 PETROL_PRICE_VND = PETROL_PRICE_CURRENT_VND
 DIESEL_PRICE_VND = DIESEL_PRICE_CURRENT_VND
-EV_CHARGING_PRICE_VND = 3858  # V-Green standard rate (stable through 2029; VinFast commitment)
+EV_CHARGING_PRICE_VND = int(_req("EV_CHARGING_PRICE_VND"))  # V-Green standard rate (stable through 2029)
 
 # --- Registration ---
-ICE_REGISTRATION_RATE_STANDARD = 0.10
-ICE_REGISTRATION_RATE_CENTRAL_CITY = 0.12
-EV_EXEMPTION_END_DATE = date(2027, 2, 28)
-EV_POST_EXEMPTION_DISCOUNT = 0.50
+ICE_REGISTRATION_RATE_STANDARD = float(_req("ICE_REGISTRATION_RATE_STANDARD"))
+ICE_REGISTRATION_RATE_CENTRAL_CITY = float(_req("ICE_REGISTRATION_RATE_CENTRAL_CITY"))
+EV_EXEMPTION_END_DATE = date.fromisoformat(_req("EV_EXEMPTION_END_DATE"))
+EV_POST_EXEMPTION_DISCOUNT = float(_req("EV_POST_EXEMPTION_DISCOUNT"))
 
 # --- Area Classification ---
 # Area 1: Central cities
@@ -96,66 +146,58 @@ CITY_LIST = [
 # Per-area-1 metro vs non-metro split: only Hanoi and HCMC pay the 14M plate fee;
 # Da Nang, Hue, Can Tho, and Hai Phong (also Area-1) pay the standard 140K rate.
 # Area 2/3: remaining provinces (unified rate).
-PLATE_FEES = {1: 14_000_000, 2: 140_000, 3: 140_000}  # legacy fallback (Area-1 → 14M)
-PLATE_FEE_METRO = 14_000_000          # Hanoi + HCMC (Thông tư 155/2025 metro rate)
-PLATE_FEE_NON_METRO_AREA1 = 140_000   # Da Nang, Hue, Can Tho, Hai Phong (provincial rate)
+_PLATE_FEES_RAW = _req("PLATE_FEES")
+PLATE_FEES = {int(k): int(v) for k, v in _PLATE_FEES_RAW.items()}  # legacy fallback (Area-1 → 14M)
+PLATE_FEE_METRO = int(_req("PLATE_FEE_METRO"))          # Hanoi + HCMC (Thông tư 155/2025 metro rate)
+PLATE_FEE_NON_METRO_AREA1 = int(_req("PLATE_FEE_NON_METRO_AREA1"))   # provincial rate
 # Periodic inspection fee (đăng kiểm) — Thông tư 55/2022/TT-BTC: 250k inspection + 90k
 # certificate stamp for <10-seat passenger cars (340,000 VND all-in). Cadence per
 # Thông tư 47/2024/TT-BGTVT (eff. 2025-01-01), preserved by Thông tư 30/2026/TT-BXD
 # (eff. 2026-07-01): new car exempt first; first PAID cycle 36mo, then 24mo while
 # car age <7yr, 12mo at 7–20yr, 6mo beyond 20yr. One inspection is booked into
 # on_road; calculate_periodic_inspection() adds the subsequent ones.
-INSPECTION_FEE = 340_000
-ROAD_MAINTENANCE_FEE_YEARLY = 1_560_000
-CIVIL_INSURANCE_UNDER_6 = 437_000
-CIVIL_INSURANCE_6_TO_11 = 794_000
+INSPECTION_FEE = int(_req("INSPECTION_FEE"))
+ROAD_MAINTENANCE_FEE_YEARLY = int(_req("ROAD_MAINTENANCE_FEE_YEARLY"))
+CIVIL_INSURANCE_UNDER_6 = int(_req("CIVIL_INSURANCE_UNDER_6"))
+CIVIL_INSURANCE_6_TO_11 = int(_req("CIVIL_INSURANCE_6_TO_11"))
 # Optional voluntary physical-damage ("thân vỏ") insurance — Vietnamese market rate,
-# 1.1-1.7% of MSRP per year (Viettel Money 2025/2026 reference table; PVI, Bảo Việt,
-# Bảo Minh typical). Defaults to 1.5% (mid-band). Applied only when the user opts in
-# via the TCO form toggle (`include_insurance`); surfaced in `TcoResult.insurance_optional`.
-OPTIONAL_PHYSICAL_DAMAGE_INSURANCE_RATE = 0.015
+# 1.1-1.7% of MSRP per year (Viettel Money reference table; PVI, Bảo Việt, Bảo Minh).
+# Applied only when the user opts in via the TCO form toggle (`include_insurance`);
+# surfaced in `TcoResult.insurance_optional`.
+OPTIONAL_PHYSICAL_DAMAGE_INSURANCE_RATE = float(_req("OPTIONAL_PHYSICAL_DAMAGE_INSURANCE_RATE"))
 
 # --- Maintenance ---
-# Per-powertrain base annual maintenance, calibrated 2026-08-08 against Vietnamese dealer data:
-#   ICE/ICE-D/HEV base ≈ 8M VND/year — typical Toyota/Honda "cấp nhỏ" routine at 5k/10k intervals
-#     (4-8 minor services/year × 500K-1.5M VND each). NATCenter + Hyundai Bà Rịa schedules.
-#   EV base ≈ 1.2M VND/year — VinFast VF8/9 owner reports (thuongtruong + dantri 2024): typical
-#     owner spends 500K-1.5M VND TOTAL over 3 years ≈ 200-500K/yr; 1.2M sits at the upper bound
-#     to stay conservative without overstating 6-10× as the legacy 8M × 0.70 = 5.6M model did.
-BASE_ANNUAL_MAINTENANCE_ICE = 8_000_000   # ICE / ICE-D / HEV — shared base; ICE-D adds spikes.
-BASE_ANNUAL_MAINTENANCE_EV = 1_200_000   # EV-only; VinFast VF8/9 owner-report calibrated.
+# Per-powertrain base annual maintenance (see assumptions.json _meta for calibration
+# provenance): ICE/ICE-D/HEV ≈ 8M VND/yr (Vietnamese dealer routine cadence), EV ≈
+# 1.2M VND/yr (VinFast VF8/9 owner-report calibrated).
+BASE_ANNUAL_MAINTENANCE_ICE = int(_req("BASE_ANNUAL_MAINTENANCE_ICE"))   # ICE / ICE-D / HEV — shared base; ICE-D adds spikes.
+BASE_ANNUAL_MAINTENANCE_EV = int(_req("BASE_ANNUAL_MAINTENANCE_EV"))   # EV-only; VinFast VF8/9 owner-report calibrated.
 # Deprecated: retained only for backward-compatibility with persisted ConfigProposals.
 # calculate_maintenance no longer scales via this discount — the EV base is calibrated directly
 # above. Do NOT wire this into the live calc path (it re-introduces the 6-10× overstatement).
 EV_MAINTENANCE_DISCOUNT = 0.70
-MAINTENANCE_MAJOR_KM = 40_000
-MAINTENANCE_MAJOR_COST_ICE = 5_000_000
-MAINTENANCE_MAJOR_COST_ICE_D = 6_500_000
-MAINTENANCE_MAJOR_COST_EV = 1_500_000
+MAINTENANCE_MAJOR_KM = int(_req("MAINTENANCE_MAJOR_KM"))
+MAINTENANCE_MAJOR_COST_ICE = int(_req("MAINTENANCE_MAJOR_COST_ICE"))
+MAINTENANCE_MAJOR_COST_ICE_D = int(_req("MAINTENANCE_MAJOR_COST_ICE_D"))
+MAINTENANCE_MAJOR_COST_EV = int(_req("MAINTENANCE_MAJOR_COST_EV"))
 # Maintenance cost spikes (km threshold, cost) — applied on top of base annual maintenance.
 # Thresholds follow Vietnamese OEM "cấp lớn" (major service) intervals:
 #   ICE/ICE-D/HEV: 40k/80k/120k (Toyota, Honda, Mazda, Kia align here)
 #   EV: 15k/45k/90k (VinFast VF 8/9 official 12-15k cadence)
-# Each spike fires once per threshold crossed (e.g. 75k total km = 1×40k spike;
-# counts are total_km // threshold).
-# Calibrated 2026-08-09 against Vietnamese-market dealer quotes + VinFast owner reports:
-#   ICE 40k = 3.5M (NATCenter, Toyota Vios), 80k = 6.0M (NATCenter), 120k = 8.5M (timing CHAIN
-#     not belt — Toyota Vios/Honda City 1.5 i-VTEC; dealer quote bugi+dầu hộp số+nước làm mát)
-#   ICE-D 40k = 6.0M, 80k = 12.0M, 120k = 18.0M (Ford Ranger / Mazda dealer quotes — DPF/EGR
-#     service justifies the 33-50% premium over ICE; Ranger 60k ≈ 13M real-world)
-#   EV 15k = 0.5M (dantri VF8 12k report 720K, thuongtruong ~500-700K per service), 45k = 0.7M
-#     (brake fluid + inspections; extrapolated from 3-yr owner totals ~3-5M), 90k = 1.0M
-#     (coolant flush + gearbox oil; conservative vs VinFast forum consensus). Total 5-yr EV
-#     maintenance target: 3-5M VND (vs prior 6-10× overstatement).
-MAINTENANCE_SPIKES = {
-    "ICE":   [(40_000, 3_500_000),  (80_000, 6_000_000),  (120_000, 8_500_000)],   # 80k -25%, 120k -29% (Vios-class timing chain)
-    "ICE-D": [(40_000, 6_000_000),  (80_000, 12_000_000), (120_000, 18_000_000)],  # 40k +20%, 80k +20%, 120k +20% (Ford Ranger dealer quotes)
-    "HEV":   [(40_000, 3_500_000),  (80_000, 6_000_000),  (120_000, 8_000_000)],   # unchanged
-    "EV":    [(15_000,   500_000),   (45_000,   700_000),   (90_000, 1_000_000)],   # 15k -29%, 45k -30%, 90k -33% (VinFast owner data, 2026-08-09 audit)
+# Each spike fires once per threshold crossed (counts are total_km // threshold).
+# Calibration provenance (dealer quotes + owner reports, 2026-08-09 audit) lives in
+# assumptions.json _meta.MAINTENANCE_SPIKES.
+MAINTENANCE_SPIKES: dict[str, list[tuple[int, int]]] = {
+    powertrain: [(int(km), int(cost)) for km, cost in pairs]
+    for powertrain, pairs in _req("MAINTENANCE_SPIKES").items()
 }
 
 # --- Market Factors ---
-SAVINGS_INTEREST_RATE = 0.065
+SAVINGS_INTEREST_RATE = float(_req("SAVINGS_INTEREST_RATE"))
+# Years over which the fuel price glides from today's retail (year 1) to the 5-yr
+# consensus forecast in "forecast_avg" mode (see calculations.fuel_price_path).
+# Structural methodology constant, not an external-world value.
+FUEL_PRICE_GLIDE_YEARS = 5
 # Traffic efficiency (consumption multiplier per km driven in city vs highway):
 #   freeway (0.90) ≈ manufacturer-rated consumption on open road
 #   city    (1.65 ICE / 1.45 ICE-D) ≈ urban penalty for stop-and-go traffic
@@ -369,121 +411,19 @@ SECONDARY_BLEND_RATIO = 0.30       # 30% toward parametric, 70% stays ML
 
 # Calibrated resale retention anchors (FINAL retention at ~15,000 km/yr, i.e. liquidity
 # already reflected) for catalogue cars with sufficient market data. Keyed by catalogue
-# car_id (unique per model, so Ranger vs Raptor — which share a (brand,segment,car_type)
-# group key but depreciate differently — stay distinct, and VF8 vs VF e34 EVs keep
-# separate guarantee schedules).
+# car_id so same-group cars (Ranger vs Raptor, VF8 vs VF e34) stay distinct.
 #
 # Methodology: each anchor year is a bonbanh.com.vn + oto.com.vn median retention
-# (resale_price / new_price, Jul 2026 listings, n>=1 per year). Years without direct
-# market data are filled by exponential extrapolation (decay rate computed from real
-# data points), then PAVA enforces monotonicity. For calibrated cars
-# _parametric_retention skips the separate liquidity bonus (the anchor is already
-# final) and the RF/GB ensemble is bypassed — that ensemble was trained on contaminated
-# data (training_data.json mixes 2,157 synthetic ORIG rows with 378 real rows).
-# Source: bonbanh.com.vn + oto.com.vn median listings; VinFast official buyback guarantee.
-# See backend/resale_audit.md for the full predicted-vs-real analysis.
-CALIBRATED_RESALE_ANCHORS: dict[str, dict[int, float]] = {
-    # --- Train/test split (Aug 2026): anchor years from bonbanh+oto medians;
-    # test years held out in resale_mape_eval.py. Cars with <4 real records
-    # keep all real years as anchors + old calibrated values for continuity.
-    "vios_2026":          {6: 0.7073, 7: 0.6514, 9: 0.6, 18: 0.3211},
-    "city_2026":          {1: 0.9174, 2: 0.8348, 4: 0.7206, 7: 0.6766},
-    "civic_2026":         {2: 0.8988, 3: 0.840, 4: 0.781, 5: 0.722, 6: 0.6625, 7: 0.529, 8: 0.475},
-    "corolla_cross_2026": {2: 0.9299, 3: 0.8579, 5: 0.7866, 6: 0.7073},
-    "cx5_2026":           {3: 0.865, 4: 0.822, 5: 0.781, 6: 0.7419, 8: 0.670},
-    "k3_2026":            {3: 0.855, 4: 0.7981, 5: 0.755, 6: 0.711, 11: 0.493},
-    "creta_2026":         {3: 0.799, 4: 0.7589, 5: 0.721, 6: 0.685},
-    "seltos_2026":        {3: 0.812, 4: 0.7711, 5: 0.733, 6: 0.696},
-    "fortuner_2026":      {2: 0.8673, 4: 0.8071, 6: 0.6777, 14: 0.3128},
-    "innova_2026":        {3: 0.575, 4: 0.535, 5: 0.497, 6: 0.462, 11: 0.3212, 19: 0.1794},
-    "xpander_2026":       {2: 0.7895, 3: 0.7827, 4: 0.752, 5: 0.722, 6: 0.691, 7: 0.6611},
-    "morning_2026":       {3: 0.874, 4: 0.809, 5: 0.748, 6: 0.693, 11: 0.4697, 18: 0.2727},
-    "ranger_2026":        {1: 0.8938, 2: 0.7967, 5: 0.7352, 6: 0.475, 7: 0.6582, 8: 0.5516},
-    "raptor_2026":        {1: 0.8992, 2: 0.8006, 5: 0.7352, 7: 0.6582, 8: 0.5697},
-    "altis_2026":         {3: 0.586, 4: 0.529, 5: 0.483, 6: 0.460},
-    "atto3_2026":         {3: 0.576, 4: 0.520, 5: 0.474},
-    "vf9_2026":           {2: 0.514, 3: 0.561},  # large 7-seat D-SUV EV; small-EV EV_Market curve under-predicts (real records n=3)
-    # vf8_2026 / vfe34_2026 guarantee-schedule entries REMOVED from anchors (2026-08-17):
-    # their open-market headline must come from the ML/EV-Market group curve so the Option-B
-    # split (market headline vs buyback-guarantee floor) is genuine. The guarantee itself is
-    # applied via VINFAST_BUYBACK_GUARANTEE, not via these anchors.
-    # --- Tuning pass 2026-08-16: camry/santafe were NOT calibrated, so they fell
-    # through to the (brand,segment,car_type) group curve, which is contaminated by
-    # sibling model-years (camry group mean 0.52@y4 vs camry_2026 real 0.90@y4 — both
-    # from identical bonbanh records, 12/12 matched). The anchors below ARE the per-year
-    # bonbanh/oto medians (same calibration pattern as vios/city/corolla_cross).
-    # seal/xtrail are intentionally left OUT: each has only n=1 real record, and a
-    # single calibration anchor would clamp the entire curve flat. vf8/vfe34/vf5 are
-    # intentionally left OUT of the anchor table: their open-market headline is scored
-    # honestly in Mode A via market_value, and their buyback floor is carried separately
-    # by VINFAST_BUYBACK_GUARANTEE (Option B dual-number: market headline vs floor).
-    "camry_2026":         {4: 0.900, 5: 0.742, 6: 0.730, 7: 0.657, 8: 0.587, 10: 0.487, 13: 0.355},
-    "santafe_2026":       {2: 0.848, 15: 0.303, 16: 0.278},
-    # --- Gate-completion calibration 2026-08-16: the 14 non-VinFast catalogue cars
-    # still missing from CALIBRATED_RESALE_ANCHORS. These all have >=1 real bonbanh+oto
-    # record (these medians ARE the per-(car,year) gate targets) but were skipped by
-    # _gen_anchors' conservative SAFE heuristic (>=2 distinct years AND earliest<=y3)
-    # which guards *generalization* (Mode B LOCO, report-only), NOT the asserted Mode A
-    # in-sample gate. Anchoring each car's real median years makes those gate points
-    # exact (identical mechanism to vios/city/civic/camry/santafe above). Sparse n=1
-    # cars get their single observed year pinned; the parametric anchor path then
-    # extrapolates the unobserved years using the segment group curve as a prior, which
-    # is strictly better than the contaminated RF/GB group curve those cars fell to
-    # before (e.g. seal y2: was 0.671 ML vs 0.475 real = 41% APE).
-    "almera_2026":        {5: 0.6202},
-    "carens_2026":        {4: 0.7040},
-    "cx30_2026":          {7: 0.6118, 9: 0.4118, 10: 0.4105},
-    "ertiga_2026":        {4: 0.6854},
-    "havalh6_2026":       {3: 0.5071},
-    "hilux_2026":         {5: 0.6277},
-    "i10_2026":           {4: 0.9297, 5: 0.8514, 12: 0.2135},
-    "jazz_2026":          {8: 0.7190},
-    "kona_2026":          {5: 0.7480, 7: 0.6457, 8: 0.5906},
-    "mazda2_2026":        {4: 0.7623},
-    "navara_2026":        {5: 0.8059},
-    "outlander_2026":     {6: 0.6833, 7: 0.6138},
-    "seal_2026":          {2: 0.4746},
-    "xtrail_2026":        {9: 0.5453},
-    # --- Bulk calibration 2026-08-16: PAVA-monotonized bonbanh/oto per-year medians
-    # for the remaining >=2-year / earliest-year<=3 non-VinFast catalogued cars.
-    # VinFast is omitted from this anchor table — its open-market headline floats
-    # on the ML/EV-Market group curve (scored against real records in Mode A), and
-    # its buyback floor is enforced separately via VINFAST_BUYBACK_GUARANTEE
-    # (Option B: market headline vs guarantee floor), not via market anchors.
-    "accent_2026":        {1: 0.8488, 3: 0.8223, 4: 0.7921},
-    "brv_2026":           {2: 0.8965, 3: 0.834},
-    "carnival_2026":      {3: 0.8917, 5: 0.8067},
-    "crv_2026":           {2: 0.869, 4: 0.7598, 5: 0.7134, 6: 0.6679},
-    "custin_2026":        {2: 0.8559, 3: 0.8213},
-    "cx8_2026":           {3: 0.7727, 4: 0.7264},
-    "elantra_2026":       {2: 0.8842, 4: 0.7459, 5: 0.624, 6: 0.624, 7: 0.5456, 10: 0.4933},
-    "everest_2026":       {1: 0.9162, 2: 0.8035, 3: 0.749, 4: 0.6757, 5: 0.596, 6: 0.5296, 7: 0.5075, 8: 0.4997, 10: 0.4997},
-    "forester_2026":      {2: 0.8867, 4: 0.82, 6: 0.6442, 7: 0.6442},
-    "mg5_2026":           {2: 0.7557, 3: 0.6534},
-    "mghs_2026":          {2: 0.741, 3: 0.729, 6: 0.5741},
-    "mgzs_2026":          {1: 0.8486, 2: 0.7228, 3: 0.6752, 5: 0.6207},
-    "raize_2026":         {2: 0.9388, 3: 0.9137, 4: 0.8876, 5: 0.8233},
-    "sonet_2026":         {2: 0.8949, 3: 0.8194, 4: 0.8005, 5: 0.7783},
-    "sportage_2026":      {2: 0.8309, 3: 0.7993, 4: 0.7434},
-    "stargazer_2026":     {1: 0.8431, 2: 0.7671, 4: 0.6311},
-    "territory_2026":     {1: 0.8498, 2: 0.81, 3: 0.7691},
-    "triton_2026":        {3: 0.6077, 4: 0.6077, 5: 0.579, 7: 0.4221, 8: 0.4221, 9: 0.3236},
-    "tucson_2026":        {2: 0.8421, 4: 0.8421, 5: 0.7081, 8: 0.5243},
-    "veloz_2026":         {1: 0.7951, 2: 0.7407, 4: 0.6289, 7: 0.5716},
-    "xforce_2026":        {1: 0.9035, 2: 0.8514},
-    "xl7_2026":           {1: 0.8765, 2: 0.8347, 4: 0.7346},
-            "yaris_cross_2026":   {1: 0.9153, 2: 0.8194, 3: 0.8125},
-    "a4_2026":            {6: 0.6213, 9: 0.413, 10: 0.3485, 11: 0.2337, 12: 0.216},
-    "a6_2026":            {3: 0.7651, 6: 0.5128, 11: 0.2697, 12: 0.2036},
-    "bmw3_2026":          {1: 0.8443, 2: 0.8117, 4: 0.588},
-    "bmw5_2026":          {4: 0.6766, 10: 0.3229},
-    "cclass_2026":        {1: 0.763},
-    "palisade_2026":      {2: 0.9052, 3: 0.9052},
-    "q3_2026":            {4: 0.682, 12: 0.2593},
-    "q5_2026":            {3: 0.7088, 4: 0.7088, 5: 0.7067},
-    "x3_2026":            {2: 0.7395},
-    "x5_2026":            {1: 0.9132, 2: 0.9108, 4: 0.6703, 6: 0.5297},
-}
+# (resale_price / new_price). Years without direct market data are filled by exponential
+# extrapolation, then PAVA enforces monotonicity. For calibrated cars
+# _parametric_retention skips the separate liquidity bonus (the anchor is already final)
+# and the RF/GB ensemble is bypassed.
+#
+# Values live in backend/data/resale_anchors.json — written by the resale-automation
+# pipeline (PR-gated) and humans. vf8/vfe34/vf5 are intentionally absent there: their
+# open-market headline floats on the ML/EV-Market group curve and their buyback floor
+# is carried by VINFAST_BUYBACK_GUARANTEE below (Option B dual-number).
+CALIBRATED_RESALE_ANCHORS: dict[str, dict[int, float]] = _CALIBRATED_RESALE_ANCHORS_RAW
 
 # Mileage sensitivity for the parametric resale fallback. Annualised distance is the
 # single strongest real-world driver of depreciation, so the group-anchored/parametric
@@ -504,21 +444,22 @@ MILEAGE_FACTOR_CLAMP = (0.80, 1.12)  # keep the multiplier within a sane band
 
 # --- Parking & Toll Estimates (Monthly, VND) ---
 # Based on city/highway driving split: tolls scale with highway km, parking with city km.
-# Recalibrated 2026-08-08 against Vietnamese toll/parking sources:
-#   - area1_metro toll 1.05M matches Cầu Giẽ–Ninh Bình monthly pass (viettour3mien.vn, vetc.com.vn).
-#     The prior 700K understated the monthly ETC charge by ~50% for a Hanoi commuter.
-#   - area1_metro parking 1.7M matches Vinhomes Central Park / Hà Đô Centrosa / Kingdom 101 means
-#     (hadocentrosagarden.vn, lsvn.vn). Prior 1.5M was the lower tail; 1.7M is the weighted mean.
-#   - area3 parking 700K matches suburban Bình Dương Dĩ An post-HCM-merger rates (700-750K).
-# area1 / area2 values unchanged — already within ≤2% of real data.
-PARKING_TOLL_ESTIMATES = {
-    "area1_metro": {"parking_monthly": 1_700_000, "toll_monthly": 1_050_000},
-    "area1":       {"parking_monthly": 1_000_000, "toll_monthly": 600_000},
-    "area2":       {"parking_monthly": 800_000,   "toll_monthly": 200_000},
-    "area3":       {"parking_monthly": 700_000,   "toll_monthly": 50_000},
+# Recalibration provenance (2026-08-08, Vietnamese toll/parking sources) lives in
+# assumptions.json _meta.PARKING_TOLL_ESTIMATES.
+PARKING_TOLL_ESTIMATES: dict[str, dict[str, int]] = {
+    area: {"parking_monthly": int(v["parking_monthly"]), "toll_monthly": int(v["toll_monthly"])}
+    for area, v in _req("PARKING_TOLL_ESTIMATES").items()
 }
 
-LAST_UPDATED = date(2026, 8, 8)
+# Data freshness: derived as the OLDEST verified_at across assumptions.json _meta,
+# so a stale domain automatically pushes the UI staleness badge — no hand-bumped
+# constant to forget. Bump freshness by re-verifying values in assumptions.json.
+_VERIFIED_DATES = [
+    date.fromisoformat(m["verified_at"])
+    for m in ASSUMPTIONS_META.values()
+    if isinstance(m, dict) and m.get("verified_at")
+]
+LAST_UPDATED = min(_VERIFIED_DATES) if _VERIFIED_DATES else date(2026, 8, 8)
 DATA_RECENCY_DAYS = 60
 
 # --- Persistence ---

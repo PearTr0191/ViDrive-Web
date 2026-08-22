@@ -1,0 +1,65 @@
+{
+  "_meta": {
+    "_description": "Maintenance-cost provenance for catalogue cars, written by backend/scripts/fetch_maintenance.py (and reviewed PRs). SIGNAL ONLY pipeline: this file records evidence; cars.json / assumptions.json constants are never edited automatically.",
+    "_schema": "per car_id: {annual_expected_vnd, method ('dealer_menu'|'oem_menu'|'manual'), intervals:[{km,cost_vnd}], source_url, fetched_at, deviation_vs_current} ; _meta.brand_overrides: {brand: invoice_adjustment}",
+    "brand_overrides": {}
+  },
+  "vf3_2026": {
+    "method": "dealer_menu",
+    "source_url": "https://xe5s.vn/blog-xe/danh-gia-xe/chi-phi-bao-duong-xe-vinfast-vf3-vf5-vf6-vf7-vf8-den-vf9-va-limo-green-658.html",
+    "annual_expected_vnd": 2500000,
+    "invoice_adjustment": 1.0,
+    "current_annual_maintenance": 1000000,
+    "deviation_vs_current": 1.5,
+    "verified_at": "2026-08-22"
+  },
+  "vf5_2026": {
+    "method": "dealer_menu",
+    "source_url": "https://xe5s.vn/blog-xe/danh-gia-xe/chi-phi-bao-duong-xe-vinfast-vf3-vf5-vf6-vf7-vf8-den-vf9-va-limo-green-658.html",
+    "annual_expected_vnd": 3500000,
+    "invoice_adjustment": 1.0,
+    "current_annual_maintenance": 1200000,
+    "deviation_vs_current": 1.9167,
+    "verified_at": "2026-08-22"
+  },
+  "vf6_2026": {
+    "method": "dealer_menu",
+    "source_url": "https://xe5s.vn/blog-xe/danh-gia-xe/chi-phi-bao-duong-xe-vinfast-vf3-vf5-vf6-vf7-vf8-den-vf9-va-limo-green-658.html",
+    "annual_expected_vnd": 4500000,
+    "invoice_adjustment": 1.0,
+    "current_annual_maintenance": 1200000,
+    "deviation_vs_current": 2.75,
+    "verified_at": "2026-08-22"
+  },
+  "vf7_2026": {
+    "method": "dealer_menu",
+    "source_url": "https://xe5s.vn/blog-xe/danh-gia-xe/chi-phi-bao-duong-xe-vinfast-vf3-vf5-vf6-vf7-vf8-den-vf9-va-limo-green-658.html",
+    "annual_expected_vnd": 5500000,
+    "invoice_adjustment": 1.0,
+    "current_annual_maintenance": 1300000,
+    "deviation_vs_current": 3.2308,
+    "verified_at": "2026-08-22"
+  },
+  "vf8_2026": {
+    "method": "dealer_menu",
+    "source_url": "https://xe5s.vn/blog-xe/danh-gia-xe/chi-phi-bao-duong-xe-vinfast-vf3-vf5-vf6-vf7-vf8-den-vf9-va-limo-green-658.html",
+    "flag": "implausible_source_total",
+    "implausible_source_value": 35000000,
+    "annual_expected_vnd": null,
+    "invoice_adjustment": 1.0,
+    "current_annual_maintenance": 1500000,
+    "deviation_vs_current": null,
+    "verified_at": "2026-08-22"
+  },
+  "vf9_2026": {
+    "method": "dealer_menu",
+    "source_url": "https://xe5s.vn/blog-xe/danh-gia-xe/chi-phi-bao-duong-xe-vinfast-vf3-vf5-vf6-vf7-vf8-den-vf9-va-limo-green-658.html",
+    "flag": "implausible_source_total",
+    "implausible_source_value": 45000000,
+    "annual_expected_vnd": null,
+    "invoice_adjustment": 1.0,
+    "current_annual_maintenance": 1500000,
+    "deviation_vs_current": null,
+    "verified_at": "2026-08-22"
+  }
+}

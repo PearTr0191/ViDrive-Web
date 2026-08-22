@@ -39,9 +39,11 @@ import sys
 import tempfile
 import warnings
 from collections import defaultdict
+from pathlib import Path
 from statistics import median
 
-os.chdir(r"D:\Projects\ViDrive Web\backend")
+# Repo-relative: this script lives in backend/, so the backend root is its parent dir.
+os.chdir(Path(__file__).resolve().parent)
 sys.path.insert(0, ".")
 warnings.filterwarnings("ignore")
 
@@ -83,7 +85,18 @@ for i, a in enumerate(_cli):
 cars = json.load(open("data/cars.json", encoding="utf-8"))
 bonbanh = json.load(open("data/models/bonbanh_real.json", encoding="utf-8"))
 oto = json.load(open("data/models/oto_real.json", encoding="utf-8"))
-training_raw = json.load(open("data/models/training_data.json", encoding="utf-8"))
+training_all = json.load(open("data/models/training_data.json", encoding="utf-8"))
+
+# Leakage precondition (Phase-5C), enforced structurally: the gate's BASE model
+# must train on PURE ORIG synthetic rows. A file containing merged real rows
+# would train the baseline on real data and fake the base-vs-merged comparison.
+# Previously this required a manual backup/restore dance before every gate run;
+# filtering at load makes the precondition hold regardless of on-disk state.
+training_raw = [r for r in training_all if r.get("source") in (None, "ORIG")]
+_excluded = len(training_all) - len(training_raw)
+if _excluded:
+    print(f"[leakage guard] excluded {_excluded} real-source rows from the "
+          f"training_data.json baseline (gate trains ORIG-only)")
 
 # (brand, price) uniquely identifies a catalogue car (verified 390/390, 0 collisions)
 BP = {(c["brand"], c["price"]): cid for cid, c in cars.items()}
@@ -183,28 +196,19 @@ if RUN_A:
 # Mode B: leave-one-car-out retrain (honest generalization)
 # ---------------------------------------------------------------------------
 def fit_ensemble(rows, rf_p, gb_p, seed=42):
-    """Fit RF+GB on `rows` (mirrors train_models.py: 20x real upsample)."""
-    df = pd.DataFrame(rows)
-    df["log_price"] = np.log(df["price"] + 1)
-    df["km_per_year"] = df["annual_km"]
-    df["is_real"] = df["source"].notna() & (df["source"] != "ORIG")
-    cats = ["brand", "segment", "car_type"]
-    enc = pd.get_dummies(df[cats], prefix=cats, drop_first=False).astype(float)
-    feats = pd.concat([df[["years", "km_per_year", "log_price"]].reset_index(drop=True),
-                       enc.reset_index(drop=True)], axis=1).to_numpy(dtype=float)
-    y = df["resale_pct"].to_numpy(dtype=float)
-    is_real = df["is_real"].to_numpy(bool)
-    real_idx = np.where(is_real)[0]
-    synth_idx = np.where(~is_real)[0]
-    train_idx = np.concatenate([synth_idx, np.repeat(real_idx, 20)])
-    rng = np.random.RandomState(seed)
-    rng.shuffle(train_idx)
-    rf = RandomForestRegressor(n_estimators=600, max_depth=15, min_samples_leaf=2,
-                               random_state=seed, n_jobs=1)
-    rf.fit(feats[train_idx], y[train_idx])
-    gb = GradientBoostingRegressor(n_estimators=500, max_depth=5, learning_rate=0.03,
-                                   min_samples_leaf=4, subsample=0.8, random_state=seed)
-    gb.fit(feats[train_idx], y[train_idx])
+    """Fit RF+GB on `rows` via the canonical trainer (train_models.py).
+
+    The gate previously carried its own copy of the feature build + upsample +
+    hyperparameters; drift between the copies would silently decouple what the
+    gate validates from what production ships. Delegation guarantees parity.
+    n_jobs=1 keeps 161 sequential LOCO retrains memory-friendly.
+    """
+    sys.path.insert(0, str(Path("data").resolve() / "models"))
+    try:
+        from train_models import train_ensemble
+        rf, gb = train_ensemble(rows, seed=seed, n_jobs=1)
+    finally:
+        sys.path.pop(0)
     joblib.dump(rf, rf_p)
     joblib.dump(gb, gb_p)
 

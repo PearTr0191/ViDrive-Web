@@ -1,0 +1,94 @@
+name: Fuel price refresh
+
+# Keeps the CURRENT fuel anchors in backend/data/assumptions.json fresh.
+# The bot only ever writes validated market observations; the 5-yr FORECAST
+# values stay human-calibrated (EIA consensus anchor) and are never touched.
+# A push to main auto-deploys Render, so a merged bot commit ships the new
+# prices. On any validation failure an issue is opened instead — garbage is
+# never committed.
+
+on:
+  schedule:
+    - cron: "0 2 * * 4" # Thursdays 02:00 UTC = 09:00 ICT; MoT adjusts ~biweekly
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: fuel-refresh
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Fetch and update prices
+        id: fetch
+        run: |
+          set +e
+          python backend/scripts/fetch_fuel_prices.py
+          code=$?
+          echo "exit_code=$code" >> "$GITHUB_OUTPUT"
+          case $code in
+            0) echo "result=NO_CHANGE"   >> "$GITHUB_OUTPUT" ;;
+            2) echo "result=UPDATED"     >> "$GITHUB_OUTPUT" ;;
+            *) echo "result=INVALID"     >> "$GITHUB_OUTPUT" ;;
+          esac
+          exit 0
+
+      - name: Commit updated prices
+        if: steps.fetch.outputs.result == 'UPDATED'
+        run: |
+          git config user.name "vidrive-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add backend/data/assumptions.json
+          git commit -m "chore(data): fuel prices $(date -u +%F)"
+          git push
+
+      - name: Open issue on invalid fetch
+        if: steps.fetch.outputs.result == 'INVALID'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const title = `Fuel refresh failed ${new Date().toISOString().slice(0, 10)}`;
+            const { data: issues } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'fuel-refresh',
+            });
+            const body = [
+              '`fetch_fuel_prices.py` exited INVALID on the scheduled run.',
+              '',
+              'Validation or source parsing failed, so **no prices were written**.',
+              'The app keeps serving the previous verified values (staleness badge reflects it).',
+              '',
+              `Run: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+              '',
+              'Reproduce locally: `python backend/scripts/fetch_fuel_prices.py`',
+            ].join('\n');
+            const existing = issues.find((i) => i.title.startsWith('Fuel refresh failed'));
+            if (existing) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: existing.number,
+                body,
+              });
+            } else {
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title,
+                labels: ['fuel-refresh', 'automated'],
+                body,
+              });
+            }

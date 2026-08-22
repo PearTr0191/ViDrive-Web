@@ -1,0 +1,143 @@
+name: Resale monthly refresh
+
+# Monthly PR-gated pipeline:
+#   scrape bonbanh -> merge real records -> stress gate (Mode A+C, fast path)
+#   -> on PASS: retrain, publish pickles as a Release, open PR with evidence
+#   -> on REJECT: open an issue, nothing merged.
+# Mode B (LOCO) is intentionally NOT in the scheduled path (slow, report-only);
+# run it ad hoc: workflow_dispatch on a self-hosted/larger runner or locally.
+
+on:
+  schedule:
+    - cron: "0 17 1 * *" # 1st of the month 17:00 UTC = 00:00 ICT
+  workflow_dispatch:
+    inputs:
+      skip_scrape:
+        description: "Skip scraping (re-gate existing data)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: resale-monthly
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install pinned runtime
+        run: |
+          pip install -r backend/requirements-runtime.txt
+          pip install requests
+
+      - name: Scrape + merge new real records
+        if: ${{ !inputs.skip_scrape }}
+        id: scrape
+        run: |
+          set +e
+          python backend/scripts/resale_monthly.py
+          code=$?
+          echo "exit_code=$code" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: Abort on scrape failure
+        if: steps.scrape.outputs.exit_code == '4'
+        run: |
+          gh issue create \
+            --title "Resale monthly scrape failed $(date -u +%F)" \
+            --label automated \
+            --body "resale_monthly.py exited 4 (zero pages scraped). Check bonbanh reachability from Actions." || true
+          exit 1
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Stress gate (Mode A + C)
+        id: gate
+        run: |
+          set +e
+          python backend/stress_resale_exhaustive.py --skip-b | tee gate-output.txt
+          echo "exit_code=$?" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: On REJECT — open issue, publish nothing
+        if: steps.gate.outputs.exit_code != '0'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `Resale gate REJECT ${new Date().toISOString().slice(0, 10)}`,
+              labels: ['resale-pipeline', 'automated'],
+              body: [
+                'Gate Modes A+C failed after merging fresh data. **No models were published.**',
+                'Data refresh (bonbanh_real.json) is committed below for inspection, but',
+                'MODELS_VERSION.json still points at the previous good state.',
+                '',
+                '```',
+                ...fs.readFileSync('gate-output.txt', 'utf8').split('\n').slice(-60),
+                '```',
+              ].join('\n'),
+            });
+
+      - name: Retrain on PASS
+        if: steps.gate.outputs.exit_code == '0'
+        run: python backend/data/models/train_models.py
+
+      - name: Publish release + open PR on PASS
+        if: steps.gate.outputs.exit_code == '0'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="model-v$(date -u +%Y.%m)"
+          BRANCH="bot/resale-$TAG"
+          git config user.name "vidrive-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$BRANCH"
+
+          # Manifest: point production at the release artifacts
+          python - <<'PY'
+          import hashlib, json
+          from pathlib import Path
+          models = Path("backend/data/models")
+          tag = "model-v" + __import__("datetime").date.today().strftime("%Y.%m")
+          assets, sums = {}, {}
+          for name in ("resale_rf.pkl", "resale_gb.pkl"):
+              assets[name] = name
+              sums[name] = hashlib.sha256((models / name).read_bytes()).hexdigest()
+          manifest = json.loads((models / "MODELS_VERSION.json").read_text(encoding="utf-8"))
+          manifest.update({"version": tag, "source": "release", "assets": assets, "sha256": sums})
+          (models / "MODELS_VERSION.json").write_text(json.dumps(manifest, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+          print("manifest ->", tag)
+          PY
+
+          git add backend/data/models/bonbanh_real.json backend/data/models/MODELS_VERSION.json
+          git commit -m "chore(data): monthly resale refresh $TAG (gate PASS)"
+          git push origin "$BRANCH"
+
+          gh release create "$TAG" backend/data/models/resale_rf.pkl backend/data/models/resale_gb.pkl \
+            --title "$TAG" --notes "Retrained after stress-gate PASS (Modes A+C). See gate output in the workflow run."
+
+          gh pr create \
+            --base main --head "$BRANCH" \
+            --title "Monthly resale refresh $TAG" \
+            --body "Automated monthly pipeline: fresh bonbanh records merged, stress gate **PASS** (Mode A car-year MAPE <= 4%, max APE <= 10%; Mode C invariants). Pickles published as release \`$TAG\`; manifest points production at the release. Review gate-output in the run log, then merge to ship."
+
+      - name: Attach gate output to PR context
+        if: steps.gate.outputs.exit_code == '0'
+        uses: actions/upload-artifact@v4
+        with:
+          name: gate-output
+          path: gate-output.txt

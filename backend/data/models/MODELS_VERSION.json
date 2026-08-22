@@ -1,0 +1,12 @@
+{
+  "version": "repo-blob-2026-08",
+  "source": "repo",
+  "assets": {},
+  "sha256": {},
+
+  "_meta": {
+    "_description": "Model-artifact delivery manifest consumed by backend/scripts/fetch_models.py at Render build time.",
+    "_schema": "source='repo': use git-blob pickles as-is (bootstrap state). source='release': download `assets` from GitHub Release tag=`version`, verify sha256, then serve.",
+    "upgrade_path": "The monthly resale job flips this to {'version':'model-vYYYY.MM','source':'release','assets':{'resale_rf.pkl':...,'resale_gb.pkl':...},'sha256':{...}} after a PASS gate."
+  }
+}

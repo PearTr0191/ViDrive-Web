@@ -9,7 +9,7 @@ import multi_source_scraper as ms
 HERE = Path(__file__).parent
 DATA = HERE.parent  # data/
 CARS = ms.load_cars_json()
-CURRENT_YEAR = 2026
+from pipeline_common import CURRENT_YEAR
 
 
 def card_to_listing(card: dict) -> dict | None:

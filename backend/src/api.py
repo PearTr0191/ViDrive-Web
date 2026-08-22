@@ -37,6 +37,7 @@ from src.config import (
     APP_VERSION,
     AREA1_CITIES,
     AREA2_PROVINCES,
+    ASSUMPTIONS_META,
     BASE_ANNUAL_MAINTENANCE_EV,
     BASE_ANNUAL_MAINTENANCE_ICE,
     BRAND_LIQUIDITY_MAP,
@@ -233,6 +234,9 @@ class TcoRequest(BaseModel):
     rush_hour: bool = False
     include_insurance: bool = False
     include_parking_toll: bool = True
+    # "forecast_avg" (default): glide today's price → multi-year consensus across the
+    # window. "current": pin every year to today's pump/charging price.
+    fuel_price_mode: Literal["forecast_avg", "current"] = "forecast_avg"
 
 
 class CompareRequest(BaseModel):
@@ -249,6 +253,7 @@ class CompareRequest(BaseModel):
     rush_hour: bool = False
     include_insurance: bool = False
     include_parking_toll: bool = True
+    fuel_price_mode: Literal["forecast_avg", "current"] = "forecast_avg"
 
 
 class LoanRequest(BaseModel):
@@ -281,6 +286,7 @@ class WizardRequest(BaseModel):
     rush_hour: bool = False
     include_insurance: bool = False
     include_parking_toll: bool = True
+    fuel_price_mode: Literal["forecast_avg", "current"] = "forecast_avg"
 
 
 class HistorySaveRequest(BaseModel):
@@ -301,6 +307,7 @@ class BreakdownRequest(BaseModel):
     city_ratio: float = Field(0.3, ge=0, le=1)
     area: int | None = None
     rush_hour: bool = False
+    fuel_price_mode: Literal["forecast_avg", "current"] = "forecast_avg"
 
 
 class ParkingTollOut(BaseModel):
@@ -354,6 +361,8 @@ class TcoResult(BaseModel):
     insurance_optional: int = 0
     inspection_periodic: int = 0
     rush_hour_applied: bool = False
+    fuel_price_mode: str = "forecast_avg"
+    fuel_price_vnd: int | None = None
     confidence_low: int | None = None
     confidence_high: int | None = None
     ml_max_year: int | None = None
@@ -401,6 +410,7 @@ class TcoCalculationResponse(BaseModel):
     rush_hour: bool = False
     include_insurance: bool = False
     include_parking_toll: bool = True
+    fuel_price_mode: str = "forecast_avg"
     result: TcoResult
 
 
@@ -417,6 +427,7 @@ class CompareResponse(BaseModel):
     rush_hour: bool = False
     include_insurance: bool = False
     include_parking_toll: bool = True
+    fuel_price_mode: str = "forecast_avg"
     results: list[TcoResult]
 
 
@@ -701,6 +712,7 @@ def calculate_tco(req: TcoRequest):
         area=area, city_ratio=req.city_ratio,
         rush_hour=req.rush_hour, include_insurance=req.include_insurance,
         include_parking_toll=req.include_parking_toll,
+        fuel_price_mode=req.fuel_price_mode,
     )
     return {
         "car_id": req.car_id,
@@ -714,6 +726,7 @@ def calculate_tco(req: TcoRequest):
         "rush_hour": req.rush_hour,
         "include_insurance": req.include_insurance,
         "include_parking_toll": req.include_parking_toll,
+        "fuel_price_mode": req.fuel_price_mode,
         "result": res,
     }
 
@@ -746,7 +759,8 @@ def compare_tco(req: CompareRequest):
         get_tco(_enrich_car(_resolve_car(cid, custom_lookup.get(cid), cars), cid),
                 req.city, req.km, req.years, area=area, city_ratio=req.city_ratio,
                  rush_hour=req.rush_hour, include_insurance=req.include_insurance,
-                 include_parking_toll=req.include_parking_toll)
+                 include_parking_toll=req.include_parking_toll,
+                 fuel_price_mode=req.fuel_price_mode)
         for cid in req.car_ids
     ]
     return {
@@ -760,6 +774,7 @@ def compare_tco(req: CompareRequest):
         "rush_hour": req.rush_hour,
         "include_insurance": req.include_insurance,
         "include_parking_toll": req.include_parking_toll,
+        "fuel_price_mode": req.fuel_price_mode,
         "results": results,
     }
 
@@ -770,7 +785,9 @@ def tco_breakdown(req: BreakdownRequest):
     cars = _get_cars()
     car = _resolve_car(req.car_id, req.car, cars)
     area = _resolve_area(req.city, req.area)
-    fuel = get_fuel_breakdown(car, req.km, req.years, req.city_ratio, rush_hour=req.rush_hour)
+    fuel = get_fuel_breakdown(car, req.km, req.years, req.city_ratio,
+                              rush_hour=req.rush_hour,
+                              fuel_price_mode=req.fuel_price_mode)
     registration = get_registration_breakdown(car, area, city=req.city)
     return {"fuel": fuel, "registration": registration}
 
@@ -785,6 +802,7 @@ def tco_yearly_breakdown(req: TcoRequest):
         _enrich_car(car, req.car_id), req.city, req.km, req.years,
         area=area, city_ratio=req.city_ratio,
         include_parking_toll=req.include_parking_toll,
+        fuel_price_mode=req.fuel_price_mode,
     )
     return {
         "car_id": req.car_id,
@@ -824,6 +842,7 @@ def wizard_custom(req: WizardRequest):
         area=area, city_ratio=req.city_ratio,
         rush_hour=req.rush_hour, include_insurance=req.include_insurance,
         include_parking_toll=req.include_parking_toll,
+        fuel_price_mode=req.fuel_price_mode,
     )
     return {
         "car": car,
@@ -1618,9 +1637,27 @@ def get_assumptions_schema() -> AssumptionsResponse:
         "data_recency_days": DATA_RECENCY_DAYS,
         "days_since_update": (date.today() - LAST_UPDATED).days,
         "data_stale": (date.today() - LAST_UPDATED).days > DATA_RECENCY_DAYS,
+        # Per-domain freshness from assumptions.json _meta (fuel/fees/insurance/
+        # maintenance/market/parking) — the oldest verified_at per domain.
+        "domain_verified_at": _domain_verified_at(),
         "app_version": APP_VERSION,
     }
     return AssumptionsResponse(metadata=metadata, groups=groups)
+
+
+def _domain_verified_at() -> dict[str, str]:
+    """Oldest verified_at per assumptions domain (drives UI freshness detail)."""
+    oldest: dict[str, str] = {}
+    for entry in ASSUMPTIONS_META.values():
+        if not isinstance(entry, dict):
+            continue
+        domain, verified = entry.get("domain"), entry.get("verified_at")
+        if not domain or not verified:
+            continue
+        current = oldest.get(domain)
+        if current is None or verified < current:
+            oldest[domain] = verified
+    return oldest
 
 
 @app.get("/api/config/assumptions", response_model=AssumptionsResponse)

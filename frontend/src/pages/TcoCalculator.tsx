@@ -131,6 +131,11 @@ export default function TcoCalculator() {
   const [rushHour, setRushHour] = useState(searchParams.get('rush') === '1')
   const [includeInsurance, setIncludeInsurance] = useState(searchParams.get('ins') === '1')
   const [includeParkingToll, setIncludeParkingToll] = useState(searchParams.get('park') !== '0')
+  // Fuel pricing mode: "forecast_avg" (default) glides today's pump/charging price to
+  // the multi-year consensus across the ownership window; "current" pins every year
+  // to today's price. Deep-linkable via ?fuel=current.
+  const [useCurrentPrices, setUseCurrentPrices] = useState(searchParams.get('fuel') === 'current')
+  const fuelPriceMode: 'forecast_avg' | 'current' = useCurrentPrices ? 'current' : 'forecast_avg'
   const [linkCopied, setLinkCopied] = useState(false)
   const [saved, setSaved] = useState(false)
   // Flip the Save button back to its idle label whenever inputs change
@@ -143,6 +148,7 @@ export default function TcoCalculator() {
   const [loanTerm, setLoanTerm] = useState<number>(DEFAULTS.loanTerm)
   const [loanResult, setLoanResult] = useState<any>(null)
   const [resaleWarning, setResaleWarning] = useState<string | null>(null)
+  const [warningDismissed, setWarningDismissed] = useState(false)
   const [mlMaxYear, setMlMaxYear] = useState<number | null>(null)
   const [customCarWarning, setCustomCarWarning] = useState<string | null>(null)
   const queryClient = useQueryClient()
@@ -232,6 +238,7 @@ export default function TcoCalculator() {
     setRushHour(DEFAULTS.rushHour)
     setIncludeInsurance(DEFAULTS.includeInsurance)
     setIncludeParkingToll(DEFAULTS.includeParkingToll)
+    setUseCurrentPrices(false)
     setLinkCopied(false)
     setShowLoan(DEFAULTS.showLoan)
     setLoanDownPct(DEFAULTS.loanDownPct)
@@ -245,8 +252,8 @@ export default function TcoCalculator() {
   const displayedCarInfo = allCars.find(c => c.id === displayedCarId)
   const displayedIsCustom = displayedCarId ? isCustomCarId(displayedCarId) : false
   const { data: breakdown } = useQuery({
-    queryKey: ['tco-breakdown', displayedCarId, displayedCity, displayedKm, displayedYears, displayedRatio, rushHour],
-    queryFn: () => api.getBreakdown({ car_id: displayedCarId!, car: displayedIsCustom ? displayedCarInfo : undefined, city: displayedCity, km: displayedKm, years: displayedYears, city_ratio: displayedRatio, rush_hour: rushHour }),
+    queryKey: ['tco-breakdown', displayedCarId, displayedCity, displayedKm, displayedYears, displayedRatio, rushHour, result?.result?.fuel_price_mode],
+    queryFn: () => api.getBreakdown({ car_id: displayedCarId!, car: displayedIsCustom ? displayedCarInfo : undefined, city: displayedCity, km: displayedKm, years: displayedYears, city_ratio: displayedRatio, rush_hour: rushHour, fuel_price_mode: result?.result?.fuel_price_mode }),
     enabled: !!selectedCar,
     staleTime: 60_000,
   })
@@ -265,37 +272,53 @@ export default function TcoCalculator() {
   // the wrong curve is never painted, then render the exact API curve once it
   // arrives.
   const { data: yearlyData, isInitialLoading: yearlyLoading } = useQuery({
-     queryKey: ['tco-yearly', displayedCarId, displayedCity, displayedKm, displayedYears, displayedRatio, rushHour, includeParkingToll],
-     queryFn: () => api.getYearlyBreakdown({ car_id: displayedCarId!, car: displayedIsCustom ? displayedCarInfo : undefined, city: displayedCity, km: displayedKm, years: displayedYears, city_ratio: displayedRatio, rush_hour: rushHour, include_parking_toll: includeParkingToll }),
+     queryKey: ['tco-yearly', displayedCarId, displayedCity, displayedKm, displayedYears, displayedRatio, rushHour, includeParkingToll, result?.result?.fuel_price_mode],
+     queryFn: () => api.getYearlyBreakdown({ car_id: displayedCarId!, car: displayedIsCustom ? displayedCarInfo : undefined, city: displayedCity, km: displayedKm, years: displayedYears, city_ratio: displayedRatio, rush_hour: rushHour, include_parking_toll: includeParkingToll, fuel_price_mode: result?.result?.fuel_price_mode }),
     enabled: !!result && !!selectedCar,
     staleTime: 60_000,
   })
 
-  // Detect parametric fallback warnings from yearly data or main TCO result.
-  // Surface as a floating notification that auto-dismisses after 8 seconds.
-   useEffect(() => {
-     const allWarnings: string[] = []
-     if (yearlyData?.warnings) allWarnings.push(...yearlyData.warnings)
-     if (result?.result?.warnings) allWarnings.push(...result.result.warnings)
+// Detect parametric fallback warnings from yearly data or main TCO result.
+  // Surface as a floating notification that auto-dismisses after 5 seconds.
+  // `warningDismissed` gates this effect so the timer can actually clear the
+  // banner — without it the effect re-shows the warning immediately after
+  // the timer fires (resaleWarning is in the dep array), creating a loop that
+  // only breaks when the user changes to a supported term.
+  useEffect(() => {
+    if (warningDismissed) return
+    const allWarnings: string[] = []
+    if (yearlyData?.warnings) allWarnings.push(...yearlyData.warnings)
+    if (result?.result?.warnings) allWarnings.push(...result.result.warnings)
 
-     const hasFallback = allWarnings.includes('resale.fallbackToParametric')
-     if (hasFallback) {
-       const mlMaxYear = yearlyData?.ml_max_year ?? result?.result?.ml_max_year ?? displayedYears
-       if (resaleWarning === null) {
-         setResaleWarning('resale.fallbackToParametric')
-       }
-       setMlMaxYear(mlMaxYear)
-     } else if (resaleWarning !== null) {
-       setResaleWarning(null)
-     }
-    }, [yearlyData?.warnings, result?.result?.warnings, yearlyData?.ml_max_year, result?.result?.ml_max_year, resaleWarning])
+    const hasFallback = allWarnings.includes('resale.fallbackToParametric')
+    if (hasFallback) {
+      const mlMaxYear = yearlyData?.ml_max_year ?? result?.result?.ml_max_year ?? displayedYears
+      if (resaleWarning === null) {
+        setResaleWarning('resale.fallbackToParametric')
+      }
+      setMlMaxYear(mlMaxYear)
+    } else if (resaleWarning !== null) {
+      setResaleWarning(null)
+    }
+  }, [yearlyData?.warnings, result?.result?.warnings, yearlyData?.ml_max_year, result?.result?.ml_max_year, resaleWarning, warningDismissed])
 
-  // Auto-dismiss the resale warning after 8 seconds from when it first appears.
+  // Auto-dismiss the resale warning after 5 seconds from when it first appears.
   useEffect(() => {
     if (!resaleWarning) return
-    const timer = setTimeout(() => setResaleWarning(null), 8000)
+    const timer = setTimeout(() => {
+      setResaleWarning(null)
+      setWarningDismissed(true)
+    }, 5000)
     return () => clearTimeout(timer)
   }, [resaleWarning])
+
+  // Re-arm the warning so it can reappear when the underlying calculation
+  // changes (new car, new term, new result). The dismiss flag is only
+  // cleared when the warning data itself shifts, so an unrelated re-render
+  // (e.g. dragging the km slider) never resurrects a dismissed banner.
+  useEffect(() => {
+    setWarningDismissed(false)
+  }, [result?.result?.warnings, yearlyData?.warnings])
 
   const handleCalculate = () => {
     if (!selectedCar) return
@@ -309,6 +332,7 @@ export default function TcoCalculator() {
       rush_hour: rushHour,
       include_insurance: includeInsurance,
       include_parking_toll: includeParkingToll,
+      fuel_price_mode: fuelPriceMode,
     }
     if (isCustomCarId(selectedCar)) {
       let customCarData = allCars.find(c => c.id === selectedCar)
@@ -375,6 +399,20 @@ export default function TcoCalculator() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // Hot-reload the results card when the fuel-pricing toggle flips and a result
+  // is already shown — the pricing choice changes the number, not the inputs,
+  // so requiring a manual Recalculate would feel broken. Skipped before any
+  // result exists (the toggle then just shapes the first calculation).
+  const prevFuelModeRef = useRef(fuelPriceMode)
+  useEffect(() => {
+    if (prevFuelModeRef.current === fuelPriceMode) return
+    prevFuelModeRef.current = fuelPriceMode
+    if (result && !mutation.isPending) {
+      handleCalculateRef.current()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fuelPriceMode])
 
   const handleCalculateLoan = useCallback(async () => {
     if (!result) return
@@ -451,6 +489,7 @@ export default function TcoCalculator() {
     if (rushHour) params.set('rush', '1')
     if (includeInsurance) params.set('ins', '1')
     if (!includeParkingToll) params.set('park', '0')
+    if (useCurrentPrices) params.set('fuel', 'current')
     if (variant) params.set('v', variant)
     const url = `${window.location.origin}${window.location.pathname}${params.toString() ? '?' + params.toString() : ''}`
     try {
@@ -528,16 +567,24 @@ export default function TcoCalculator() {
   // Nested collapsible for the fuel breakdown — closed by default; the fuel row
   // itself stays visible as a top-level operations line item.
   const [fuelDetailOpen, setFuelDetailOpen] = useState(false)
+  // Nested collapsible for the Insurance & Fees breakdown — mirrors the fuel
+  // breakdown so the recurring legal costs (road fee + civil insurance +
+  // periodic inspection) are as inspectable as the fuel maths.
+  const [insuranceDetailOpen, setInsuranceDetailOpen] = useState(false)
 
   const acquisitionItems = result ? [
     { label: t('tco.msrp'), value: result.result.price },
     { label: t('tco.regTax'), value: result.result.reg_tax },
   ] : []
 
-  const operationsItems = result ? [
+  const operationsItems: Array<{
+    label: string
+    value: number
+    isInsurance?: boolean
+  }> = result ? [
     { label: t('tco.fuel'), value: result.result.fuel },
     { label: t('tco.maintenance'), value: result.result.maint },
-    { label: t('tco.insurance'), value: result.result.legal },
+    { label: t('tco.insurance'), value: result.result.legal, isInsurance: true },
     ...(result.result.insurance_optional
       ? [{ label: t('tco.physicalDamageInsurance'), value: result.result.insurance_optional }]
       : []),
@@ -906,6 +953,21 @@ export default function TcoCalculator() {
             </label>
           </div>
 
+          <div className="flex items-start gap-2">
+            <input
+              type="checkbox"
+              id="fuel-pricing"
+              checked={useCurrentPrices}
+              onChange={(e) => setUseCurrentPrices(e.target.checked)}
+              aria-describedby="fuel-pricing-hint"
+              className="w-4 h-4 mt-0.5 flex-shrink-0 text-accent bg-[rgba(var(--bg-base-rgb),0.5)] border-[var(--border-default)] rounded focus:ring-accent/50"
+            />
+            <label htmlFor="fuel-pricing" className="text-sm text-[var(--text-primary)]">
+              <span>{t('tco.currentFuelPrices')}</span>
+              <span id="fuel-pricing-hint" className="block text-[11px] text-[var(--text-muted)]">{t('tco.currentFuelPricesHint')}</span>
+            </label>
+          </div>
+
           <AccentButton
             onClick={handleTcoPrimary}
             disabled={mutation.isPending || (!result && !selectedCar)}
@@ -1252,7 +1314,6 @@ export default function TcoCalculator() {
                                      <span aria-hidden="true" className={'transition-transform text-accent ' + (fuelDetailOpen ? 'rotate-0' : '-rotate-90')}>▾</span>
                                     {t('tco.howFuelCalculated')}
                                   </span>
-                                  <span className="font-mono">{breakdown.fuel.consumption?.toFixed(2)} {fuelUnit}</span>
                                 </button>
                                 <AnimatePresence initial={false}>
                                   {fuelDetailOpen && (
@@ -1309,9 +1370,62 @@ export default function TcoCalculator() {
                             )}
                             {/* Remaining operations line items: maintenance, insurance, optional, parking */}
                             {operationsItems.slice(1).map((item, i) => (
-                              <div key={i} className="flex justify-between items-center">
-                                <span className="text-sm text-[var(--text-secondary)]">{item.label}</span>
-                                <span className="text-sm font-mono text-[var(--text-primary)]">{formatVND(item.value)}</span>
+                              <div key={i}>
+                                <div className="flex justify-between items-center">
+                                  <span className="text-sm text-[var(--text-secondary)]">{item.label}</span>
+                                  <span className="text-sm font-mono text-[var(--text-primary)]">{formatVND(item.value)}</span>
+                                </div>
+                                {/* Insurance & Fees breakdown — nested collapsible mirroring the
+                                    fuel breakdown. The recurring `legal` total (road fee +
+                                    civil insurance + periodic inspection) is decomposed so
+                                    the user can inspect what the aggregate hides. */}
+                                {item.isInsurance && breakdown?.registration && result && (
+                                  <div className="ml-1">
+                                    <button
+                                      type="button"
+                                      onClick={() => setInsuranceDetailOpen((v) => !v)}
+                                      aria-expanded={insuranceDetailOpen}
+                                      aria-controls="tco-insurance-detail"
+                                      className="w-full flex justify-between items-center text-xs text-[var(--text-muted)] hover:text-[var(--text-secondary)] cursor-pointer py-1"
+                                    >
+                                      <span className="flex items-center gap-1.5">
+                                        <span aria-hidden="true" className={'transition-transform text-accent ' + (insuranceDetailOpen ? 'rotate-0' : '-rotate-90')}>▾</span>
+                                        {t('tco.howInsuranceCalculated')}
+                                      </span>
+                                    </button>
+                                    <AnimatePresence initial={false}>
+                                      {insuranceDetailOpen && (
+                                        <motion.div
+                                          id="tco-insurance-detail"
+                                          initial={{ height: 0, opacity: 0 }}
+                                          animate={{ height: 'auto', opacity: 1 }}
+                                          exit={{ height: 0, opacity: 0 }}
+                                          transition={{ duration: 0.2 }}
+                                          className="overflow-hidden"
+                                        >
+                                          <div className="pt-1 pb-2 pl-6 space-y-1.5">
+                                            <div className="flex justify-between text-sm">
+                                              <span className="text-[var(--text-muted)]">{t('tco.roadFeeAnnual')}</span>
+                                              <span className="font-mono text-[var(--text-secondary)]">{formatVND(breakdown.registration.road_fee)} × {Math.max(0, displayedYears - 1)}</span>
+                                            </div>
+                                            <div className="flex justify-between text-sm">
+                                              <span className="text-[var(--text-muted)]">{t('tco.civilInsuranceAnnual')}</span>
+                                              <span className="font-mono text-[var(--text-secondary)]">{formatVND(breakdown.registration.insurance)} × {Math.max(0, displayedYears - 1)}</span>
+                                            </div>
+                                            <div className="flex justify-between text-sm">
+                                              <span className="text-[var(--text-muted)]">{t('tco.periodicInspectionBreakdown')}</span>
+                                              <span className="font-mono text-[var(--text-secondary)]">{formatVND(result.result.inspection_periodic ?? 0)}</span>
+                                            </div>
+                                            <div className="flex justify-between text-sm pt-1.5 border-t border-[var(--border-subtle)]">
+                                              <span className="text-[var(--text-secondary)] font-medium">{t('tco.insuranceFeesTotal')}</span>
+                                              <span className="font-mono text-[var(--text-secondary)] font-semibold">{formatVND(result.result.legal)}</span>
+                                            </div>
+                                          </div>
+                                        </motion.div>
+                                      )}
+                                    </AnimatePresence>
+                                  </div>
+                                )}
                               </div>
                             ))}
                             {showOppCost && (

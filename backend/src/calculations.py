@@ -255,7 +255,44 @@ def calculate_periodic_inspection(car: dict, purchase_date=None, years: int = 5,
     return extra * fee
 
 
-def calculate_fuel_cost(km, consumption, car_type, city_ratio=0.0, rush_hour=False):
+def fuel_price_path(car_type: str, years: int, mode: str = "forecast_avg") -> list[float]:
+    """Per-year fuel unit price (VND/L or VND/kWh) across the ownership window.
+
+    mode="current": flat today's retail price for every year.
+
+    mode="forecast_avg" (default): linear glide from today's pump price in year 1
+    to the multi-year consensus forecast by year FUEL_PRICE_GLIDE_YEARS+1, held
+    flat after. A 1-year window prices at spot; long windows converge to the
+    expected median, which is what keeps multi-year TCO honest when today's
+    pump price sits above or below the structural consensus.
+
+    EV charging has no separate forecast (V-Green rate committed stable through
+    2029), so both modes return the same value for EVs.
+    """
+    if car_type == "ICE-D":
+        current, forecast = DIESEL_PRICE_CURRENT_VND, DIESEL_PRICE_FORECAST_VND
+    elif car_type == "EV":
+        current = forecast = EV_CHARGING_PRICE_VND
+    else:
+        current, forecast = PETROL_PRICE_CURRENT_VND, PETROL_PRICE_FORECAST_VND
+
+    if years <= 0:
+        return []
+    if mode == "current":
+        return [float(current)] * years
+    glide = max(1, FUEL_PRICE_GLIDE_YEARS)
+    weights = [max(0.0, (glide + 1 - k) / glide) for k in range(1, years + 1)]
+    return [forecast + (current - forecast) * w for w in weights]
+
+
+def effective_fuel_price(car_type: str, years: int, mode: str = "forecast_avg") -> float:
+    """Mean per-year unit price across the window (the TCO fuel price)."""
+    path = fuel_price_path(car_type, max(years, 1), mode)
+    return sum(path) / len(path) if path else 0.0
+
+
+def calculate_fuel_cost(km, consumption, car_type, city_ratio=0.0, rush_hour=False,
+                        years=1, fuel_price_mode="forecast_avg", year=None):
     """Adjusts fuel consumption based on city traffic ratio using the efficiency matrix.
 
     Returns an integer (rounded to the nearest VND) to avoid IEEE-754 precision
@@ -264,6 +301,11 @@ def calculate_fuel_cost(km, consumption, car_type, city_ratio=0.0, rush_hour=Fal
     `rush_hour=True` bumps the city-efficiency multiplier from its baseline
     (1.50x for ICE) toward the 2.0x Otofun-reported Hà Nội rush-hour peak. The
     bump scales linearly with `city_ratio` so a pure-highway commute is unaffected.
+
+    Pricing: `fuel_price_mode` selects today's retail ("current") vs the
+    current→forecast glide average ("forecast_avg", default). `years` sizes the
+    averaging window; `year` (1-based) prices a single specific year of the
+    glide path (used by the per-year chart breakdown).
     """
     if not consumption or consumption <= 0:
         return 0.0
@@ -271,20 +313,18 @@ def calculate_fuel_cost(km, consumption, car_type, city_ratio=0.0, rush_hour=Fal
     freeway_mult, city_mult = TRAFFIC_EFFICIENCY_MAP.get(car_type, (1.0, 1.0))
     if rush_hour and city_ratio > 0:
         # Per-powertrain rush-hour city target from TRAFFIC_RUSH_HOUR_MULT. ICE bumps toward
-        # the 2.0x Otofun Hà Nội gridlock peak; HEV/EV drop further below 1.0 because stop-and-go
-        # traffic gives regen braking more recovery opportunities (DOE / fueleconomy.gov).
+        # the 2.0x Otofun Hà Nội gridlock peak; ICE-D less (throttle-insensitive); HEV/EV
+        # drop below 1.0 because stop-and-go gives regen braking more recovery (DOE).
         # The city-share scaling is applied by final_mult below, so all-highway commutes stay
         # unaffected.
         city_mult = TRAFFIC_RUSH_HOUR_MULT.get(car_type, 2.0)
     final_mult = freeway_mult + (city_mult - freeway_mult) * city_ratio
     adjusted_consumption = consumption * final_mult
 
-    if car_type in ["ICE", "HEV"]:
-        price = PETROL_PRICE_CURRENT_VND
-    elif car_type == "ICE-D":
-        price = DIESEL_PRICE_CURRENT_VND
+    if year is not None:
+        price = fuel_price_path(car_type, year, fuel_price_mode)[year - 1]
     else:
-        price = EV_CHARGING_PRICE_VND
+        price = effective_fuel_price(car_type, years, fuel_price_mode)
 
     return round((km / 100) * adjusted_consumption * price)
 
@@ -918,7 +958,8 @@ def _calculate_tco_uncertainty(reg: dict, fuel: float, maint: float,
 
 
 def _zero_tco_dict(car: dict, city: str, km: float, purchase_date=None, area=None,
-                   include_parking_toll: bool = True) -> dict:
+                   include_parking_toll: bool = True,
+                   fuel_price_mode: str = "forecast_avg") -> dict:
     """TCO with a 0-year horizon: acquisition (on-road) only.
 
     No operating costs accrue and resale equals price (no ownership period),
@@ -940,6 +981,8 @@ def _zero_tco_dict(car: dict, city: str, km: float, purchase_date=None, area=Non
         "reg_tax": reg["tax"],
         "on_road": round(on_road),
         "fuel": 0,
+        "fuel_price_mode": fuel_price_mode,
+        "fuel_price_vnd": None,
         "maint": 0,
         "legal": 0,
         "operating": 0,
@@ -967,7 +1010,8 @@ def _zero_tco_dict(car: dict, city: str, km: float, purchase_date=None, area=Non
 
 
 def get_tco(car, city, km, years=5, purchase_date=None, area=None, city_ratio=0.0,
-            rush_hour=False, include_insurance=False, include_parking_toll=True):
+            rush_hour=False, include_insurance=False, include_parking_toll=True,
+            fuel_price_mode="forecast_avg"):
     """Master TCO: Acquisition + Running - Resale
 
     `rush_hour=True` swaps in the per-powertrain rush-hour city multiplier from
@@ -977,17 +1021,26 @@ def get_tco(car, city, km, years=5, purchase_date=None, area=None, city_ratio=0.
     voluntary physical-damage ("thân vỏ") coverage at ~1.5% of MSRP per year — typical
     PVI / Bảo Việt / Bảo Minh market rate. Both are surfaced on `TcoResult` so the
     frontend can disclose which toggles shaped the prediction.
+
+    `fuel_price_mode="forecast_avg"` (default) prices fuel on the current→forecast
+    glide average across the ownership window; "current" pins every year to today's
+    pump/charging price. The effective unit price and mode are surfaced on the
+    result so the frontend can disclose which pricing shaped the number.
     """
     if years <= 0:
         return _zero_tco_dict(car, city, km, purchase_date, area,
-                              include_parking_toll=include_parking_toll)
+                              include_parking_toll=include_parking_toll,
+                              fuel_price_mode=fuel_price_mode)
     price = car["price"]
     reg = calculate_registration(price, city, car["type"], purchase_date, area=area, seats=car.get("seats", 5))
     # "Giá lăn bánh" (on-road price) = MSRP + reg_tax + plate + inspection + year-1
     # road-maintenance fee + year-1 civil insurance (paid upfront in Vietnam).
     on_road = reg["on_road"]
 
-    fuel = calculate_fuel_cost(km, car["consumption"], car["type"], city_ratio, rush_hour=rush_hour) * years
+    fuel_annual_price = effective_fuel_price(car["type"], years, fuel_price_mode)
+    fuel = calculate_fuel_cost(km, car["consumption"], car["type"], city_ratio,
+                               rush_hour=rush_hour, years=years,
+                               fuel_price_mode=fuel_price_mode) * years
     maint = calculate_maintenance(km, car["type"], car.get("annual_maintenance"), years)
     # Year-1 road fee + civil insurance are already in `on_road`, so the operating
     # tail covers only the remaining (years-1) years. Total TCO is unchanged; this
@@ -1051,6 +1104,8 @@ def get_tco(car, city, km, years=5, purchase_date=None, area=None, city_ratio=0.
         "reg_tax": reg["tax"],
         "on_road": round(on_road),
         "fuel": fuel,
+        "fuel_price_mode": fuel_price_mode,
+        "fuel_price_vnd": round(fuel_annual_price),
         "maint": maint,
         "legal": round(road_fees + insurance + inspection_periodic),
         "operating": round(operating),
@@ -1167,13 +1222,15 @@ def calculate_loan_schedule(on_road_price: float, down_pct: float, annual_rate: 
 
 
 def get_tco_yearly(car: dict, city: str, km: float, years: int = 5, purchase_date=None, area=None,
-                  city_ratio: float = 0.0, include_parking_toll: bool = True) -> tuple[list[dict], list[str], int | None]:
+                  city_ratio: float = 0.0, include_parking_toll: bool = True,
+                  fuel_price_mode: str = "forecast_avg") -> tuple[list[dict], list[str], int | None]:
     """Return per-year TCO breakdown for chart visualization.
 
     Produces a non-linear cumulative cost curve by:
     - Computing depreciation per year via calculate_resale (non-linear ML/parametric curve)
     - Escalating maintenance costs with vehicle age (~15% per year)
-    - Keeping fuel/insurance/road fees constant (realistic)
+    - Pricing fuel per glide-path year (forecast_avg) or flat (current); the path
+      sums exactly to the TCO total because the effective price is the path mean
     - Subtracting residual value at each year to get true cumulative ownership cost
     """
     price = car["price"]
@@ -1188,7 +1245,10 @@ def get_tco_yearly(car: dict, city: str, km: float, years: int = 5, purchase_dat
     # at registration in Vietnam.
     on_road = reg["on_road"]
 
-    annual_fuel = calculate_fuel_cost(km, car["consumption"], car["type"], city_ratio)
+    fuel_path = fuel_price_path(car["type"], years, fuel_price_mode)
+    _fw_mult, _city_mult = TRAFFIC_EFFICIENCY_MAP.get(car["type"], (1.0, 1.0))
+    yearly_final_mult = _fw_mult + (_city_mult - _fw_mult) * city_ratio
+    yearly_adjusted_consumption = car["consumption"] * yearly_final_mult
     annual_road = ROAD_MAINTENANCE_FEE_YEARLY
     annual_legal = annual_road + reg["insurance"]
 
@@ -1243,10 +1303,11 @@ def get_tco_yearly(car: dict, city: str, km: float, years: int = 5, purchase_dat
         # sum matches get_tco's calculate_maintenance(km, ..., years).
         year_maint = round(total_maint_all * (1.0 + 0.15 * (year - 1)) / esc_sum)
 
-        # Fuel, parking are constant per year. Year-1 road + civil insurance are
-        # already absorbed in `on_road` so we skip them in year 1's operating block
-        # to avoid double-counting (matches the acquisition-block formula).
-        year_fuel = annual_fuel
+        # Fuel follows the per-year glide path (forecast_avg) or stays flat
+        # (current). Year-1 road + civil insurance are already absorbed in
+        # `on_road` so we skip them in year 1's operating block to avoid
+        # double-counting (matches the acquisition-block formula).
+        year_fuel = round((km / 100) * yearly_adjusted_consumption * fuel_path[year - 1])
         year_inspection = INSPECTION_FEE if (age0 + year) in extra_ages else 0
         year_legal = (annual_legal if year > 1 else 0) + year_inspection
         year_parking = annual_parking
@@ -1311,7 +1372,8 @@ def get_tco_yearly(car: dict, city: str, km: float, years: int = 5, purchase_dat
     return yearly_data, warnings, ml_max_year
 
 
-def get_fuel_breakdown(car, km, years, city_ratio, rush_hour=False):
+def get_fuel_breakdown(car, km, years, city_ratio, rush_hour=False,
+                       fuel_price_mode="forecast_avg"):
     """Return a breakdown of fuel cost calculation for verbose display."""
     consumption = car["consumption"]
     car_type = car["type"]
@@ -1321,15 +1383,25 @@ def get_fuel_breakdown(car, km, years, city_ratio, rush_hour=False):
     final_mult = freeway_mult + (city_mult - freeway_mult) * city_ratio
     adjusted_consumption = consumption * final_mult
 
-    if car_type in ["ICE", "HEV"]:
-        price = PETROL_PRICE_CURRENT_VND
-        price_label = f"RON 95 ({PETROL_PRICE_CURRENT_VND:,} VND/L)"
-    elif car_type == "ICE-D":
-        price = DIESEL_PRICE_CURRENT_VND
-        price_label = f"Diesel ({DIESEL_PRICE_CURRENT_VND:,} VND/L)"
+    if car_type == "ICE-D":
+        current_price = DIESEL_PRICE_CURRENT_VND
+        fuel_label = "Diesel"
+        unit = "VND/L"
+    elif car_type == "EV":
+        current_price = EV_CHARGING_PRICE_VND
+        fuel_label = "EV Charging"
+        unit = "VND/kWh"
     else:
-        price = EV_CHARGING_PRICE_VND
-        price_label = f"EV Charging ({EV_CHARGING_PRICE_VND:,} VND/kWh)"
+        current_price = PETROL_PRICE_CURRENT_VND
+        fuel_label = "RON 95"
+        unit = "VND/L"
+
+    price = effective_fuel_price(car_type, years, fuel_price_mode)
+    if fuel_price_mode == "current" or abs(price - current_price) < 0.5:
+        price_label = f"{fuel_label} ({current_price:,} {unit}, today)"
+    else:
+        price_label = (f"{fuel_label} ({round(price):,} {unit} avg over {years}y, "
+                       f"glide to forecast)")
 
     annual_fuel = (km / 100) * adjusted_consumption * price
     total_fuel = annual_fuel * years
@@ -1340,7 +1412,8 @@ def get_fuel_breakdown(car, km, years, city_ratio, rush_hour=False):
         "freeway_mult": round(freeway_mult, 2),
         "city_mult": round(city_mult, 2),
         "final_mult": round(final_mult, 3),
-        "price": price,
+        "price": round(price),
+        "price_mode": fuel_price_mode,
         "price_label": price_label,
         "car_type": car_type,
         "annual_fuel": round(annual_fuel),
